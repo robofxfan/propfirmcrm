@@ -20,6 +20,9 @@
   --text:#e6f0ea; --muted:#8aa499; --danger:#ef4444;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+body.light{--bg:#f4f7f5;--panel:#ffffff;--panel2:#eef3f0;--border:#d8e2dc;--text:#12211b;--muted:#5f7168}
+body.light .pill.pending{background:#e4e4e4;color:#333}
+body.light .badge.admin{background:#fdeccb}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
 a{color:var(--gold2)}
 .hidden{display:none!important}
@@ -149,6 +152,8 @@ tr:hover td{background:var(--panel2)}
     <div class="side-foot">
       <div class="who" id="whoName">—</div>
       <div style="margin:6px 0"><span class="badge" id="whoRole">—</span></div>
+      <button class="btn ghost sm" id="themeBtn" style="width:100%;margin-bottom:6px" onclick="toggleTheme()">☀️ Day mode</button>
+      <button class="btn ghost sm" id="hideBtn" style="width:100%;margin-bottom:6px;display:none" onclick="toggleHideBal()">🙈 Hide balances</button>
       <button class="btn ghost sm" style="width:100%" onclick="logout()">Logout</button>
     </div>
   </aside>
@@ -165,9 +170,14 @@ let ME = null;            // profile {id,email,full_name,role,active}
 let authMode = 'login';
 
 const $ = id => document.getElementById(id);
-const money = n => '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-const pkr = n => 'Rs ' + (Number(n)||0).toLocaleString('en-US');
-const sar = n => 'SAR ' + (Number(n)||0).toLocaleString('en-US');
+let HIDEBAL=false;
+const money = n => HIDEBAL ? '$\u2022\u2022\u2022\u2022' : '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pkr = n => HIDEBAL ? 'Rs \u2022\u2022\u2022\u2022' : 'Rs ' + (Number(n)||0).toLocaleString('en-US');
+const sar = n => HIDEBAL ? 'SAR \u2022\u2022\u2022\u2022' : 'SAR ' + (Number(n)||0).toLocaleString('en-US');
+function toggleTheme(){ const on=document.body.classList.toggle('light'); try{localStorage.setItem('crm_light',on?'1':'0');}catch(e){} updateThemeBtn(); }
+function updateThemeBtn(){ const b=$('themeBtn'); if(b) b.textContent = document.body.classList.contains('light')?'\u{1F319} Night mode':'\u2600\uFE0F Day mode'; }
+function toggleHideBal(){ HIDEBAL=!HIDEBAL; try{localStorage.setItem('crm_hidebal',HIDEBAL?'1':'0');}catch(e){} updateHideBtn(); if(typeof CURRENT!=='undefined'&&CURRENT) go(CURRENT); }
+function updateHideBtn(){ const b=$('hideBtn'); if(b) b.textContent = HIDEBAL?'\u{1F441} Show balances':'\u{1F648} Hide balances'; }
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function authMsg(t,k){ $('authMsg').innerHTML = t?`<div class="msg ${k||'err'}">${esc(t)}</div>`:''; }
 
@@ -311,6 +321,8 @@ async function boot(){
   $('whoName').textContent = ME.full_name || (ME.email||'').split('@')[0];
   $('whoRole').textContent = ME.role;
   $('whoRole').className = 'badge '+ME.role;
+  updateThemeBtn(); updateHideBtn();
+  if($('hideBtn')) $('hideBtn').style.display = ME.role==='admin' ? 'block' : 'none';
   const allowed = buildNav();
   if(ME.role==='pending' || allowed.length===0){
     $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
@@ -1263,6 +1275,7 @@ if(sb){ sb.auth.onAuthStateChange(async(event)=>{
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 (async()=>{
   if(!sb){ authMsg('Setup not finished: Supabase keys are missing.'); return; }
+  try{ if(localStorage.getItem('crm_light')==='1') document.body.classList.add('light'); HIDEBAL=localStorage.getItem('crm_hidebal')==='1'; }catch(e){}
   const {data:{session}} = await sb.auth.getSession();
   if(session) boot();
 })();
