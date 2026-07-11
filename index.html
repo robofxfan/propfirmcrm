@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prop Firm CRM</title>
+<meta name="theme-color" content="#0a0f0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Prop CRM">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0f0d; --panel:#0f1714; --panel2:#13201b; --border:#1f3329;
+  --green:#16a34a; --green2:#22c55e; --gold:#d97706; --gold2:#f59e0b;
+  --text:#e6f0ea; --muted:#8aa499; --danger:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+a{color:var(--gold2)}
+.hidden{display:none!important}
+input,select,textarea{width:100%;padding:10px 12px;background:var(--panel2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:14px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--green)}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
+.btn{padding:10px 16px;border:none;border-radius:8px;background:var(--green);color:#03150c;
+  font-weight:700;cursor:pointer;font-size:14px}
+.btn:hover{background:var(--green2)}
+.btn.gold{background:var(--gold);color:#1a0f00}.btn.gold:hover{background:var(--gold2)}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text);font-weight:600}
+.btn.ghost:hover{border-color:var(--green)}
+.btn.sm{padding:6px 10px;font-size:12px}
+.btn.danger{background:var(--danger);color:#fff}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.field{margin-bottom:14px}
+
+/* AUTH */
+#auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.auth-card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);
+  border-radius:16px;padding:32px}
+.brand{font-size:24px;font-weight:800;text-align:center;margin-bottom:4px}
+.brand b{color:var(--green2)} .brand i{color:var(--gold2);font-style:normal}
+.sub{text-align:center;color:var(--muted);margin-bottom:24px;font-size:13px}
+.tabs{display:flex;gap:8px;margin-bottom:20px}
+.tabs button{flex:1;padding:8px;background:var(--panel2);border:1px solid var(--border);
+  border-radius:8px;color:var(--muted);cursor:pointer}
+.tabs button.active{background:var(--green);color:#03150c;font-weight:700;border-color:var(--green)}
+.msg{padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.msg.err{background:#3a1414;color:#fca5a5;border:1px solid #5a1d1d}
+.msg.ok{background:#0f2a1a;color:#86efac;border:1px solid #1d5a35}
+
+/* APP SHELL */
+#app{display:flex;min-height:100vh}
+.sidebar{width:230px;background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:fixed;height:100vh}
+.sidebar .brand{font-size:19px;padding:20px 18px;text-align:left;border-bottom:1px solid var(--border)}
+.nav{flex:1;padding:12px 10px;overflow-y:auto}
+.nav a{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;
+  color:var(--muted);text-decoration:none;font-weight:600;margin-bottom:3px;cursor:pointer}
+.nav a:hover{background:var(--panel2);color:var(--text)}
+.nav a.active{background:linear-gradient(90deg,rgba(22,163,74,.25),transparent);color:var(--green2)}
+.nav a .ic{width:20px;text-align:center}
+.side-foot{padding:14px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+.side-foot .who{color:var(--text);font-weight:600}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;text-transform:capitalize}
+.badge.admin{background:#3a2a05;color:var(--gold2)}
+.badge.expense{background:#0f2a1a;color:var(--green2)}
+.badge.payout{background:#0a2030;color:#7dd3fc}
+.badge.pending{background:#2a2a2a;color:#bbb}
+.main{margin-left:230px;flex:1;padding:26px 30px;width:calc(100% - 230px)}
+.page-title{font-size:22px;font-weight:800;margin-bottom:2px}
+.page-sub{color:var(--muted);margin-bottom:22px;font-size:13px}
+
+/* CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
+.card .lab{color:var(--muted);font-size:12px;margin-bottom:8px}
+.card .val{font-size:24px;font-weight:800}
+.card .val.g{color:var(--green2)}.card .val.gd{color:var(--gold2)}.card .val.r{color:#fca5a5}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px}
+.panel h3{font-size:15px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted);
+  padding:10px 12px;border-bottom:1px solid var(--border)}
+td{padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px}
+tr:hover td{background:var(--panel2)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.toolbar .grow{flex:1;min-width:160px}
+.pill{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:capitalize}
+.pill.pending{background:#2a2a2a;color:#ccc}.pill.submitted{background:#3a2a05;color:var(--gold2)}
+.pill.approved{background:#0a2030;color:#7dd3fc}.pill.paid{background:#0f2a1a;color:var(--green2)}.pill.upcoming{background:#241a3a;color:#c4b5fd}
+.empty{text-align:center;color:var(--muted);padding:30px}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;
+  justify-content:center;z-index:50;padding:20px}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;
+  width:100%;max-width:440px;max-height:90vh;overflow:auto}
+.modal h3{margin-bottom:16px}
+
+/* MOBILE */
+.mtoggle{display:none}
+@media(max-width:820px){
+  .sidebar{transform:translateX(-100%);transition:.2s;z-index:40}
+  .sidebar.open{transform:none}
+  .main{margin-left:0;width:100%;padding:18px 14px;padding-top:64px}
+  .mtoggle{display:flex;position:fixed;top:12px;left:12px;z-index:45;
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    width:42px;height:42px;align-items:center;justify-content:center;color:var(--text);font-size:20px;cursor:pointer}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ CONFIG (filled automatically during setup) ============ -->
+<script>
+  const SUPABASE_URL  = "https://okboevgdwitubhqzfhaa.supabase.co";
+  const SUPABASE_ANON = "sb_publishable_09YyoFvK7kDG2r50MDUr-A_pWnTjTJt";
+  const LOGIN_DOMAIN  = "robofx.app";   // usernames become username@robofx.app internally
+  const ADMIN_EMAIL   = "robofxfan@gmail.com"; // admin pw reset link goes here
+  const VAPID_PUBLIC  = "BAhHYRk5-0y0Rm7xoehsbdElH0dBYz9qTaTEAyRkdWm5xTvnblqCgelJlW938ru8YoikAYRtGhDzSlL5GBIbsp4";
+</script>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="auth">
+  <div class="auth-card">
+    <div class="brand"><b>PROP</b> <i>FIRM</i> CRM</div>
+    <div class="sub">Expenses &amp; Payouts management</div>
+    <div id="authMsg"></div>
+    <div class="field"><label>Username</label><input id="auEmail" placeholder="username" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="auPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="btn" style="width:100%" id="authBtn" onclick="doAuth()">Login</button>
+    <p class="sub" style="margin-top:16px;margin-bottom:0">Accounts are created by the admin only.</p>
+    <p class="sub" style="margin-top:12px;margin-bottom:0;font-size:11px;opacity:.6">Developed &amp; designed by <b>Majid Ali</b></p>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" class="hidden">
+  <div class="mtoggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</div>
+  <aside class="sidebar">
+    <div class="brand"><b>PROP</b> <i>FIRM</i> CRM</div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <div class="who" id="whoName">—</div>
+      <div style="margin:6px 0"><span class="badge" id="whoRole">—</span></div>
+      <button class="btn ghost sm" style="width:100%" onclick="logout()">Logout</button>
+    </div>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+/* ============================================================ */
+const sb = (SUPABASE_URL.startsWith('http'))
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+let ME = null;            // profile {id,email,full_name,role,active}
+let authMode = 'login';
+
+const $ = id => document.getElementById(id);
+const money = n => '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pkr = n => 'Rs ' + (Number(n)||0).toLocaleString('en-US');
+const sar = n => 'SAR ' + (Number(n)||0).toLocaleString('en-US');
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function authMsg(t,k){ $('authMsg').innerHTML = t?`<div class="msg ${k||'err'}">${esc(t)}</div>`:''; }
+
+/* ---- prop firm + account size option lists ---- */
+const FIRMS=['Aqua Funded','FTMO','FP','The 5%ers','BlueGuardian','FTM','AlphaCapital'];
+const SIZES=['100K','150K','200K','300K','400K'];
+const EQ_FIRMS=['FP','FTMO','FTM','ACG','BG','Aqua','Fintokei'];
+const EQ_SIZES=['100K','125K','150K','200K','300K','400K'];
+let eqData=[];
+const PKR_CATS=['Grocery','Mobile Device','Laptop','Sim Pkg','Rent','Bill'];
+let pkrExpData=[]; let pkrFundData=[];
+let riyalExpData=[]; let riyalFundData=[];
+const BUY_PROFILES=['Majid','Ali','Hassan','Talib','Kaleem','Prince','SP','usmanuae','tanveeruae','uae'];
+const BUY_FIRMS=['Topstep','Tradeify','Lucid','FundedNext','FundedSeat'];
+const BUY_RATE_PER_ACC=250; const BUY_ACCS_PER_FIRM=5;
+let buyData=[]; let buyPurch=[];
+function pickField(id,label,opts,cur){
+  cur=cur||''; const inList=opts.includes(cur);
+  return `<label>${esc(label)}</label>
+    <select id="${id}_sel" onchange="this.nextElementSibling.style.display=this.value==='__other__'?'block':'none'">
+      <option value="" ${!cur?'selected':''}>Select...</option>
+      ${opts.map(o=>`<option ${cur===o?'selected':''}>${o}</option>`).join('')}
+      <option value="__other__" ${cur&&!inList?'selected':''}>Other...</option>
+    </select>
+    <input id="${id}_oth" placeholder="Type ${esc(label)}" style="margin-top:6px;display:${cur&&!inList?'block':'none'}" value="${cur&&!inList?esc(cur):''}">`;
+}
+function pickVal(id){
+  const s=document.getElementById(id+'_sel').value;
+  return s==='__other__' ? document.getElementById(id+'_oth').value.trim() : s;
+}
+
+/* ---- CSV backup ---- */
+function dlFile(name,text,type){const b=new Blob([text],{type:type||'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+function toCSV(rows,cols){const esc2=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';return cols.join(',')+'\n'+rows.map(r=>cols.map(c=>esc2(r[c])).join(',')).join('\n');}
+async function backup(){
+  const d=new Date().toISOString().slice(0,10);
+  const sets=[
+    ['expenses','expenses',['spent_on','prop_firm','account_size','cost','notes']],
+    ['funds','funds',['deposit_date','user_email','amount','notes']],
+    ['payouts','payouts',['payout_date','prop_firm','account_size','amount','split_pct','net_amount','status','payout_for','notes']],
+    ['equity_accounts','equity',['entry_date','prop_firm','account_size','status','equity','notes']],
+    ['pkr_funds','pkr-funds',['fund_date','amount','notes']],
+    ['pkr_expenses','pkr-expenses',['entry_date','category','amount','notes']],
+    ['riyal_funds','riyal-funds',['fund_date','amount','notes']],
+    ['riyal_expenses','riyal-expenses',['entry_date','category','amount','notes']],
+    ['profiles','users',['email','role','active','created_at']]
+  ];
+  let n=0;
+  for(const set of sets){
+    const {data,error}=await sb.from(set[0]).select('*');
+    if(error) continue;
+    dlFile(set[1]+'-backup-'+d+'.csv',toCSV(data||[],set[2]));
+    n++;
+  }
+  logAct('Download FULL backup',n+' files');
+  alert('\u2705 Full backup ho gaya \u2014 '+n+' CSV files download hui hain (expenses, payouts, funds, equity, PKR, Riyal, users). Inhe apne computer par mehfooz jagah save karein.');
+}
+
+function toEmail(u){ u=(u||'').trim(); return u.includes('@') ? u.toLowerCase() : (u.toLowerCase()+'@'+LOGIN_DOMAIN); }
+
+async function doAuth(){
+  if(!sb){ authMsg('App not configured yet. (Supabase keys missing.)'); return; }
+  const uname=$('auEmail').value.trim(), pass=$('auPass').value;
+  if(!uname||!pass){ authMsg('Enter username and password.'); return; }
+  $('authBtn').disabled=true;
+  try{
+    const {error} = await sb.auth.signInWithPassword({email:toEmail(uname),password:pass});
+    if(error) throw error;
+    await boot();
+  }catch(e){ authMsg('Wrong username or password.'); }
+  $('authBtn').disabled=false;
+}
+
+async function logout(){ await sb.auth.signOut(); location.reload(); }
+
+/* ---- Web Push (phone notifications) ---- */
+function urlB64ToUint8(s){const pad='='.repeat((4-s.length%4)%4);const b=(s+pad).replace(/-/g,'+').replace(/_/g,'/');const r=atob(b);return Uint8Array.from([...r].map(c=>c.charCodeAt(0)));}
+async function enablePush(){
+  try{
+    if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+      alert('This browser/device does not support push. On iPhone: first use Share → Add to Home Screen, then OPEN the app from the home screen and try again.'); return; }
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){ alert('Notification permission not granted.'); return; }
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC)});
+    const j=sub.toJSON();
+    const {error}=await sb.from('push_subscriptions').upsert({endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,user_email:ME.email},{onConflict:'endpoint'});
+    if(error){ alert('Saved on device but could not register: '+error.message); return; }
+    alert('✅ Phone notifications enabled on this device. You will get payout alerts here automatically.');
+  }catch(e){ alert('Could not enable notifications: '+e.message); }
+}
+
+async function loadMe(){
+  const {data:{user}} = await sb.auth.getUser();
+  if(!user) return null;
+  const {data} = await sb.from('profiles').select('*').eq('id',user.id).maybeSingle();
+  return data || {id:user.id,email:user.email,role:'pending',active:true,full_name:''};
+}
+
+async function logAct(action,details){
+  try{ await sb.from('activity_logs').insert({user_email:ME.email,action,details}); }catch(e){}
+}
+
+/* ---------- NAV ---------- */
+const NAV = [
+  {k:'dashboard',label:'Dashboard',ic:'📊',roles:['admin']},
+  {k:'alerts',   label:'Alerts',   ic:'🔔',roles:['admin','payout']},
+  {k:'expenses', label:'Expenses', ic:'💸',roles:['admin','expense']},
+  {k:'funds',    label:'Fund',     ic:'🏦',roles:['admin','expense']},
+  {k:'payouts',  label:'Payouts',  ic:'💰',roles:['admin','payout']},
+  {k:'equity',   label:'Equity',   ic:'💹',roles:['admin','equity']},
+  {k:'pkrexp',   label:'PKR Expenses',ic:'🧾',roles:['admin','pkr']},
+  {k:'riyalexp', label:'Riyal Expenses',ic:'💵',roles:['admin','riyal']},
+  {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures']},
+  {k:'reports',  label:'Performance',ic:'📈',roles:['admin']},
+  {k:'users',    label:'Users',    ic:'👥',roles:['admin']},
+  {k:'activity', label:'Activity', ic:'🕑',roles:['admin']},
+];
+function buildNav(){
+  const allowed = NAV.filter(n=>n.roles.includes(ME.role));
+  $('nav').innerHTML = allowed.map(n=>
+    `<a data-k="${n.k}" onclick="go('${n.k}')"><span class="ic">${n.ic}</span>${n.label}</a>`).join('');
+  return allowed;
+}
+
+let CURRENT='';
+function go(k){
+  CURRENT=k;
+  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
+  document.querySelector('.sidebar').classList.remove('open');
+  ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy}[k])();
+}
+
+async function boot(){
+  ME = await loadMe();
+  if(!ME){ return; }
+  $('auth').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('whoName').textContent = ME.full_name || (ME.email||'').split('@')[0];
+  $('whoRole').textContent = ME.role;
+  $('whoRole').className = 'badge '+ME.role;
+  const allowed = buildNav();
+  if(ME.role==='pending' || allowed.length===0){
+    $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
+      <h3 style="justify-content:center">⏳ Waiting for approval</h3>
+      <p class="page-sub" style="margin:0">Your account is created but no role is assigned yet.
+      Please ask the admin to assign you a role (Expense or Payout) in the Users page.</p></div>`;
+    return;
+  }
+  go(allowed[0].k);
+}
+
+/* ============================================================
+   DASHBOARD (admin)
+============================================================ */
+async function pageDashboard(){
+  $('view').innerHTML = `<div class="page-title">Dashboard</div>
+    <div class="page-sub">Overview of all activity</div>
+    <div class="cards" id="dCards"></div>
+    <div class="panel"><h3>Monthly Expenses vs Payouts</h3><canvas id="dChart" height="90"></canvas></div>`;
+  const [{data:exp=[]},{data:pay=[]}] = await Promise.all([
+    sb.from('expenses').select('*'), sb.from('payouts').select('*')]);
+  const pn=p=>Number(p.net_amount!=null?p.net_amount:p.amount);
+  const totalExp = exp.reduce((s,e)=>s+Number(e.cost),0);
+  const paidOut  = pay.filter(p=>p.status==='paid').reduce((s,p)=>s+pn(p),0);
+  const pendOut  = pay.filter(p=>p.status!=='paid').reduce((s,p)=>s+pn(p),0);
+  const net = paidOut - totalExp;
+  $('dCards').innerHTML = `
+    ${card('Total Expenses',money(totalExp),'r')}
+    ${card('Paid Payouts',money(paidOut),'g')}
+    ${card('Net Profit',money(net),net>=0?'g':'r')}
+    ${card('Pending Payouts',money(pendOut),'gd')}
+    ${card('Expense Records',exp.length,'')}
+    ${card('Payout Records',pay.length,'')}`;
+  drawMonthly(exp,pay);
+}
+function card(l,v,c){return `<div class="card"><div class="lab">${l}</div><div class="val ${c}">${v}</div></div>`;}
+function monthKey(d){const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0');}
+let chartRef=null;
+function drawMonthly(exp,pay){
+  const months={};
+  exp.forEach(e=>{const k=monthKey(e.spent_on);(months[k]=months[k]||{e:0,p:0}).e+=Number(e.cost);});
+  pay.filter(p=>p.status==='paid').forEach(p=>{const k=monthKey(p.payout_date);(months[k]=months[k]||{e:0,p:0}).p+=Number(p.net_amount!=null?p.net_amount:p.amount);});
+  const keys=Object.keys(months).sort().slice(-6);
+  if(chartRef)chartRef.destroy();
+  chartRef=new Chart($('dChart'),{type:'bar',data:{labels:keys,datasets:[
+    {label:'Expenses',data:keys.map(k=>months[k].e),backgroundColor:'#d97706'},
+    {label:'Payouts',data:keys.map(k=>months[k].p),backgroundColor:'#16a34a'}]},
+    options:{plugins:{legend:{labels:{color:'#8aa499'}}},
+      scales:{x:{ticks:{color:'#8aa499'},grid:{color:'#1f3329'}},
+              y:{ticks:{color:'#8aa499'},grid:{color:'#1f3329'}}}}});
+}
+
+/* ============================================================
+   EXPENSES
+============================================================ */
+let expData=[];
+async function pageExpenses(){
+  $('view').innerHTML = `<div class="page-title">Expenses</div>
+    <div class="page-sub">Prop firm accounts you bought — shown in the order of purchase date &amp; time</div>
+    <div id="expBanner"></div>
+    <div class="toolbar">
+      <input class="grow" id="expSearch" placeholder="Search firm or notes..." oninput="renderExp()">
+      <button class="btn" onclick="expModal()">+ Add Expense</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="expTable"></div></div>`;
+  const {data}= await sb.from('expenses').select('*').order('spent_on',{ascending:false}).order('created_at',{ascending:false});
+  expData=data||[];
+  if(ME.role==='expense'){
+    const {data:funds=[]} = await sb.from('funds').select('amount');
+    const recv=(funds||[]).reduce((s,f)=>s+Number(f.amount),0);
+    const spent=expData.filter(e=>e.created_by===ME.id).reduce((s,e)=>s+Number(e.cost),0);
+    const bal=recv-spent;
+    $('expBanner').innerHTML = '<div class="msg '+(bal>=0?'ok':'err')+'" style="font-size:15px;margin-bottom:14px">💰 Remaining fund: <b>'+money(bal)+'</b> &nbsp;|&nbsp; loaded '+money(recv)+' − spent '+money(spent)+'</div>';
+  }
+  renderExp();
+}
+function renderExp(){
+  const q=($('expSearch').value||'').toLowerCase();
+  const rows=expData.filter(e=>(e.prop_firm+' '+(e.notes||'')).toLowerCase().includes(q));
+  const total=rows.reduce((s,e)=>s+Number(e.cost),0);
+  if(!rows.length){$('expTable').innerHTML='<div class="empty">No expenses yet.</div>';return;}
+  $('expTable').innerHTML = `<table><thead><tr>
+    <th>Date</th><th>Prop Firm</th><th>Account</th><th>Cost</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(e=>`<tr>
+      <td>${e.spent_on}</td><td>${esc(e.prop_firm)}</td><td>${esc(e.account_size||'')}</td>
+      <td>${money(e.cost)}</td><td>${esc(e.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='expModal(${JSON.stringify(e)})'>Edit</button>
+        ${ME.role==='admin'?`<button class="btn danger sm" onclick="delRow('expenses','${e.id}',pageExpenses)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody>${ME.role==='admin'?`<tfoot><tr><td colspan="4" style="font-weight:700">Total</td>
+      <td style="font-weight:700;color:var(--green2)">${money(total)}</td><td colspan="2"></td></tr></tfoot>`:''}</table>`;
+}
+function expModal(e){
+  e=e||{}; const ed=!!e.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Expense</h3>
+    <div class="field">${pickField('m_firm','Prop Firm *',FIRMS,e.prop_firm)}</div>
+    <div class="row"><div class="field" style="flex:1">${pickField('m_acc','Account Size',SIZES,e.account_size)}</div>
+      <div class="field" style="flex:1"><label>Cost *</label>
+      <input id="m_cost" type="number" step="0.01" value="${e.cost||''}"></div></div>
+    <div class="field"><label>Date</label><input id="m_date" type="date" value="${e.spent_on||new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="m_notes" rows="2">${esc(e.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveExp('${e.id||''}')">Save</button></div>`);
+}
+async function saveExp(id){
+  const rec={prop_firm:pickVal('m_firm'),account_size:pickVal('m_acc'),
+    cost:Number($('m_cost').value||0),spent_on:$('m_date').value,notes:$('m_notes').value.trim()};
+  if(!rec.prop_firm){alert('Prop firm is required');return;}
+  let err;
+  if(id){({error:err}=await sb.from('expenses').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('expenses').insert(rec));}
+  if(err){alert(err.message);return;}
+  logAct(id?'Edit expense':'Add expense',rec.prop_firm+' '+money(rec.cost));
+  closeModal(); pageExpenses();
+}
+
+/* ============================================================
+   PAYOUTS
+============================================================ */
+let payData=[],payFilter='all';
+async function pagePayouts(){
+  $('view').innerHTML = `<div class="page-title">Payouts</div>
+    <div class="page-sub">Profit withdrawals from prop firms</div>
+    <div class="toolbar">
+      <input class="grow" id="paySearch" placeholder="Search firm or notes..." oninput="renderPay()">
+      <select id="payStatus" style="max-width:160px" onchange="payFilter=this.value;renderPay()">
+        <option value="all">All statuses</option><option>upcoming</option><option>pending</option><option>submitted</option>
+        <option>paid</option></select>
+      <button class="btn" onclick="payModal()">+ Add Payout</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="payTable"></div></div>`;
+  const {data}=await sb.from('payouts').select('*').order('payout_date',{ascending:false});
+  payData=data||[]; renderPay();
+}
+function renderPay(){
+  const q=($('paySearch').value||'').toLowerCase();
+  let rows=payData.filter(p=>(p.prop_firm+' '+(p.notes||'')).toLowerCase().includes(q));
+  if(payFilter!=='all')rows=rows.filter(p=>p.status===payFilter);
+  const pn=p=>Number(p.net_amount!=null?p.net_amount:p.amount);
+  const total=rows.reduce((s,p)=>s+Number(p.amount),0);
+  const totalNet=rows.reduce((s,p)=>s+pn(p),0);
+  if(!rows.length){$('payTable').innerHTML='<div class="empty">No payouts yet.</div>';return;}
+  $('payTable').innerHTML=`<table><thead><tr>
+    <th>Date</th><th>Prop Firm</th><th>Account</th><th>For</th><th>Amount</th><th>Your Net</th><th>Status</th><th>Proof</th><th></th></tr></thead><tbody>
+    ${rows.map(p=>`<tr>
+      <td>${p.payout_date}</td><td>${esc(p.prop_firm)}</td><td>${esc(p.account_size||'')}</td><td>${esc(p.payout_for||'-')}</td>
+      <td>${money(p.amount)}${p.split_pct!=null?` <span style="color:var(--muted);font-size:11px">(${p.split_pct}%)</span>`:''}</td>
+      <td style="color:var(--green2)">${money(pn(p))}</td>
+      <td><span class="pill ${p.status}">${p.status}</span></td>
+      <td>${p.proof_path?`<a href="#" onclick="viewProof('${p.proof_path}');return false">View</a>`:'-'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='payModal(${JSON.stringify(p)})'>Edit</button>
+        ${ME.role==='admin'?`<button class="btn danger sm" onclick="delRow('payouts','${p.id}',pagePayouts)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody>${ME.role==='admin'?`<tfoot><tr><td colspan="4" style="font-weight:700">Total</td>
+      <td style="font-weight:700">${money(total)}</td><td style="font-weight:700;color:var(--green2)">${money(totalNet)}</td><td colspan="3"></td></tr></tfoot>`:''}</table>`;
+}
+function payModal(p){
+  p=p||{}; const ed=!!p.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Payout</h3>
+    <div class="field">${pickField('m_firm','Prop Firm *',FIRMS,p.prop_firm)}</div>
+    <div class="field"><label>Payout for (kis bande ki payout hai) *</label>
+      <input id="m_for" value="${esc(p.payout_for||'')}" placeholder="Person\'s name"></div>
+    <div class="row"><div class="field" style="flex:1">${pickField('m_acc','Account Size',SIZES,p.account_size)}</div>
+      <div class="field" style="flex:1"><label>Amount (total profit) *</label>
+      <input id="m_amt" type="number" step="0.01" value="${p.amount||''}" oninput="calcSplit()"></div></div>
+    <div class="field"><label>Profit split % (your / trader share)</label>
+      <input id="m_split" type="number" step="1" value="${p.split_pct!=null?p.split_pct:80}" oninput="calcSplit()"></div>
+    <div id="m_calc" class="msg ok" style="margin-bottom:14px"></div>
+    <div class="row"><div class="field" style="flex:1"><label>Status</label>
+      <select id="m_status" onchange="togglePaidProof()">${['upcoming','pending','submitted','paid'].map(s=>
+        `<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field" style="flex:1"><label>Date</label>
+      <input id="m_date" type="date" value="${p.payout_date||new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="field" id="m_proofWrap" style="display:none">
+      <label>Payment screenshot (proof of transfer to admin)</label>
+      <input id="m_proof" type="file" accept="image/*">
+      ${p.proof_path?`<div style="font-size:12px;color:var(--green2);margin-top:4px">✓ A proof is already saved${ME.role==='admin'?` — <a href="#" onclick="viewProof('${p.proof_path}');return false">view</a>`:''}. Choose a file only to replace it.</div>`:''}</div>
+    <div class="field"><label>Notes</label><textarea id="m_notes" rows="2">${esc(p.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="m_saveBtn" onclick="savePay('${p.id||''}')">Save</button></div>`);
+  calcSplit(); togglePaidProof();
+}
+function calcSplit(){
+  const a=Number(($('m_amt')||{}).value||0), s=Number(($('m_split')||{}).value||0);
+  const net=a*s/100, firm=a-net; const el=$('m_calc');
+  if(el) el.innerHTML='Payout you receive ('+s+'%): <b>'+money(net)+'</b> &nbsp;|&nbsp; Firm keeps: <b>'+money(firm)+'</b>';
+}
+function togglePaidProof(){ const w=$('m_proofWrap'); if(w) w.style.display=($('m_status').value==='paid')?'block':'none'; }
+async function viewProof(path){
+  const {data,error}=await sb.storage.from('proofs').createSignedUrl(path,3600);
+  if(error){alert('Could not open proof: '+error.message);return;}
+  window.open(data.signedUrl,'_blank');
+}
+async function savePay(id){
+  const amount=Number($('m_amt').value||0);
+  const split_pct=Number($('m_split').value||0);
+  const rec={prop_firm:pickVal('m_firm'),account_size:pickVal('m_acc'),
+    amount, split_pct, net_amount:Math.round(amount*split_pct)/100,
+    status:$('m_status').value,payout_date:$('m_date').value,notes:$('m_notes').value.trim(),
+    payout_for:(($('m_for')||{}).value||'').trim()};
+  if(!rec.prop_firm){alert('Prop firm is required');return;}
+  const btn=$('m_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  const f=$('m_proof')&&$('m_proof').files[0];
+  if(f){
+    const path='proof-'+Date.now()+'-'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const {error:upErr}=await sb.storage.from('proofs').upload(path,f);
+    if(upErr){alert('Screenshot upload failed: '+upErr.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+    rec.proof_path=path;
+  }
+  let err;
+  if(id){({error:err}=await sb.from('payouts').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('payouts').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Edit payout':'Add payout',rec.prop_firm+' '+money(rec.net_amount)+' ('+rec.status+')');
+  closeModal(); pagePayouts();
+}
+
+/* ============================================================
+   REPORTS (admin)
+============================================================ */
+const PERF_RANGES=[[7,'Weekly'],[30,'Monthly'],[90,'3 Months'],[180,'6 Months'],[365,'1 Year'],[1825,'5 Years']];
+async function pageReports(){
+  $('view').innerHTML=`<div class="page-title">Performance</div>
+    <div class="page-sub">Expenses spent vs payouts earned — pick a time period</div>
+    <div class="toolbar" id="perfTabs"></div>
+    <div class="cards" id="repCards"></div>
+    <div class="panel"><h3>📅 Monthly Progress</h3>
+      <div class="field" style="max-width:260px"><label>Select month</label>
+        <select id="monthSel" onchange="renderMonth()"></select></div>
+      <div id="monthOut"></div></div>
+    <div class="panel"><h3>By Prop Firm (for the selected period)</h3><div id="repTable"></div></div>
+    <div style="margin-top:6px"><button class="btn" onclick="backup()">⬇ Download FULL Backup (all data, CSV)</button></div>`;
+  $('perfTabs').innerHTML=PERF_RANGES.map(([d,l])=>`<button class="btn ghost" data-d="${d}" onclick="setPerf(${d},this)">${l}</button>`).join('');
+  const [{data:e=[]},{data:p=[]}]=await Promise.all([
+    sb.from('expenses').select('*'),sb.from('payouts').select('*')]);
+  window._rep={e,p};
+  const months=buildMonthList(e,p);
+  $('monthSel').innerHTML=months.map((m,i)=>`<option value="${m.v}" ${i===0?'selected':''}>${m.l}</option>`).join('');
+  renderMonth();
+  setPerf(30, document.querySelector('#perfTabs button[data-d="30"]'));
+}
+function buildMonthList(e,p){
+  const set=new Set();
+  [...e.map(x=>x.spent_on),...p.map(x=>x.payout_date)].forEach(d=>{if(d){const s=String(d).slice(0,7); if(/^\d{4}-\d{2}$/.test(s)) set.add(s);}});
+  const y=new Date().getFullYear();
+  for(let mo=1;mo<=12;mo++){ set.add(y+'-'+String(mo).padStart(2,'0')); }
+  const arr=[...set].sort().reverse();
+  const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return arr.map(v=>{const p2=v.split('-'); return {v,l:MN[Number(p2[1])-1]+' '+p2[0]};});
+}
+function renderMonth(){
+  const {e,p}=window._rep; const m=($('monthSel')||{}).value; if(!m)return;
+  const pn=x=>Number(x.net_amount!=null?x.net_amount:x.amount);
+  const exp=e.filter(x=>String(x.spent_on||'').slice(0,7)===m);
+  const pay=p.filter(x=>String(x.payout_date||'').slice(0,7)===m && x.status==='paid');
+  const te=exp.reduce((s,x)=>s+Number(x.cost),0);
+  const tp=pay.reduce((s,x)=>s+pn(x),0);
+  const net=tp-te, roi=te>0?(net/te*100):0;
+  $('monthOut').innerHTML=`<div class="cards">${card('Expense (spent)',money(te),'r')}${card('Profit (payouts)',money(tp),'g')}${card('Net Profit',money(net),net>=0?'g':'r')}${card('ROI',roi.toFixed(1)+'%',roi>=0?'gd':'r')}</div>
+    <div style="color:var(--muted);font-size:12px;margin-top:6px">${exp.length} expense(s) & ${pay.length} paid payout(s) in this month.</div>`;
+}
+function setPerf(days,btn){
+  window._perfDays=days;
+  document.querySelectorAll('#perfTabs button').forEach(b=>b.className='btn ghost');
+  if(btn) btn.className='btn';
+  renderReport();
+}
+function renderReport(){
+  const {e,p}=window._rep; const days=window._perfDays||30;
+  const cut=new Date(); cut.setHours(0,0,0,0); cut.setDate(cut.getDate()-(days-1));
+  const inR=d=>{const x=new Date(d); return !isNaN(x) && x>=cut;};
+  const pn=x=>Number(x.net_amount!=null?x.net_amount:x.amount);
+  const exp=e.filter(x=>inR(x.spent_on)), pay=p.filter(x=>inR(x.payout_date)&&x.status==='paid');
+  const te=exp.reduce((s,x)=>s+Number(x.cost),0), tp=pay.reduce((s,x)=>s+pn(x),0);
+  const net=tp-te, roi=te>0?((net/te)*100):0;
+  $('repCards').innerHTML=`${card('Expense (spent)',money(te),'r')}${card('Payouts (earned)',money(tp),'g')}
+    ${card('Net Profit',money(net),net>=0?'g':'r')}${card('ROI',roi.toFixed(1)+'%',roi>=0?'gd':'r')}`;
+  const firms={};
+  exp.forEach(x=>{(firms[x.prop_firm]=firms[x.prop_firm]||{e:0,p:0}).e+=Number(x.cost);});
+  pay.forEach(x=>{(firms[x.prop_firm]=firms[x.prop_firm]||{e:0,p:0}).p+=pn(x);});
+  const keys=Object.keys(firms).sort();
+  $('repTable').innerHTML = keys.length?`<table><thead><tr>
+    <th>Prop Firm</th><th>Expense</th><th>Payouts (net)</th><th>Net Profit</th><th>ROI</th></tr></thead><tbody>
+    ${keys.map(k=>{const n=firms[k].p-firms[k].e; const r=firms[k].e>0?(n/firms[k].e*100):0;return `<tr><td>${esc(k)}</td>
+      <td>${money(firms[k].e)}</td><td>${money(firms[k].p)}</td>
+      <td style="color:${n>=0?'var(--green2)':'#fca5a5'}">${money(n)}</td>
+      <td style="color:${r>=0?'var(--gold2)':'#fca5a5'}">${r.toFixed(1)}%</td></tr>`;}).join('')}
+    </tbody><tfoot><tr><td style="font-weight:700">Total</td>
+      <td style="font-weight:700">${money(keys.reduce((s,k)=>s+firms[k].e,0))}</td>
+      <td style="font-weight:700;color:var(--green2)">${money(keys.reduce((s,k)=>s+firms[k].p,0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No data for this period.</div>';
+}
+
+/* ============================================================
+   USERS (admin) - assign roles / activate
+============================================================ */
+async function pageUsers(){
+  $('view').innerHTML=`<div class="page-title">Users</div>
+    <div class="page-sub">Assign each user's role and enable/disable access.</div>
+    <div class="panel" style="padding:0"><div id="usrTable"></div></div>`;
+  const {data}=await sb.from('profiles').select('*').order('created_at');
+  const rows=data||[];
+  $('usrTable').innerHTML=`<table><thead><tr>
+    <th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    ${rows.map(u=>{const isAdm=u.role==='admin';const un=esc((u.email||'').split('@')[0]);return `<tr>
+      <td>${un}${isAdm?' 🔒':''}</td>
+      <td><span class="badge ${u.role}">${u.role}</span></td>
+      <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
+      <td style="white-space:nowrap">
+        <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+        ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
+        <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
+      </td></tr>`;}).join('')}
+    </tbody></table>`;
+}
+async function setRole(id,role){
+  const {error}=await sb.from('profiles').update({role}).eq('id',id);
+  if(error){alert(error.message);return;} logAct('Set role',role); pageUsers();
+}
+async function toggleActive(id,val){
+  const {error}=await sb.from('profiles').update({active:val}).eq('id',id);
+  if(error){alert(error.message);return;} logAct('Toggle user',val?'enabled':'disabled'); pageUsers();
+}
+async function resetPw(id,uname,role){
+  if(role==='admin'){
+    if(!confirm('Admin ka password sirf ek secure link se badla ja sakta hai jo registered admin email ('+ADMIN_EMAIL+') par bheja jayega.\n\nReset link abhi bhejein?')) return;
+    const {error}=await sb.auth.resetPasswordForEmail(ADMIN_EMAIL,{redirectTo:location.origin});
+    if(error){alert('Could not send reset email: '+error.message);return;}
+    logAct('Admin password reset requested',ADMIN_EMAIL);
+    alert('\u2705 Reset link '+ADMIN_EMAIL+' par bhej diya gaya hai.\nWo email kholein aur link par click karke naya admin password set karein. (Spam folder bhi check karein.)');
+    return;
+  }
+  const pw=prompt('New password for "'+uname+'" (minimum 6 characters):');
+  if(pw===null) return;
+  if(pw.length<6){alert('Password must be at least 6 characters.');return;}
+  const {error}=await sb.rpc('admin_set_password',{target:id,new_pw:pw});
+  if(error){alert('Could not change password: '+error.message);return;}
+  logAct('Reset password',uname);
+  alert('Password updated for "'+uname+'". They can now log in with the new password.');
+}
+
+/* ============================================================
+   FUND / WALLET  (admin loads fund, expense user spends it)
+============================================================ */
+let _expUsers=[];
+async function pageFunds(){
+  const isAdmin = ME.role==='admin';
+  let h = '<div class="page-title">\U0001F3E6 Fund / Wallet</div>'
+    + '<div class="page-sub">Money loaded for buying prop firm accounts. Each account purchase is deducted from the balance automatically — deposits are NOT counted as an expense, so nothing is double-counted.</div>';
+  if(isAdmin) h += '<div class="toolbar"><button class="btn" onclick="fundModal()">+ Add Fund Deposit</button></div>';
+  h += '<div class="cards" id="fundCards"></div><div class="panel" style="padding:0"><div id="fundTable"></div></div>';
+  $('view').innerHTML = h;
+  const reqs=[ sb.from('funds').select('*').order('deposit_date',{ascending:false}), sb.from('expenses').select('cost,created_by') ];
+  if(isAdmin) reqs.push(sb.from('profiles').select('id,email,role'));
+  const res=await Promise.all(reqs);
+  const funds=res[0].data||[], exp=res[1].data||[], profs=isAdmin?(res[2].data||[]):[];
+  if(isAdmin){
+    _expUsers = profs.filter(p=>p.role==='expense');
+    const spentBy={}; exp.forEach(e=>{spentBy[e.created_by]=(spentBy[e.created_by]||0)+Number(e.cost);});
+    const recvBy={};  funds.forEach(f=>{recvBy[f.user_email]=(recvBy[f.user_email]||0)+Number(f.amount);});
+    let totR=0,totS=0,urows='';
+    _expUsers.forEach(u=>{ const r=recvBy[u.email]||0,s=spentBy[u.id]||0,b=r-s; totR+=r; totS+=s;
+      urows += '<tr><td>'+esc(u.email.split('@')[0])+'</td><td>'+money(r)+'</td><td>'+money(s)+'</td><td style="color:'+(b>=0?'var(--green2)':'#fca5a5')+';font-weight:700">'+money(b)+'</td></tr>'; });
+    if(!urows) urows='<tr><td colspan="4" class="empty">No expense users yet.</td></tr>';
+    $('fundCards').innerHTML = card('Total Fund Given',money(totR),'gd')+card('Total Spent',money(totS),'r')+card('Total Remaining',money(totR-totS),(totR-totS)>=0?'g':'r');
+    let drows='';
+    funds.forEach(f=>{ const pv = f.proof_path ? ('<a href="#" onclick="viewProof(\''+f.proof_path+'\');return false">View</a>') : '-';
+      drows += '<tr><td>'+f.deposit_date+'</td><td>'+esc(f.user_email.split('@')[0])+'</td><td style="color:var(--green2)">'+money(f.amount)+'</td><td>'+esc(f.notes||'')+'</td><td>'+pv+'</td><td style="text-align:right"><button class="btn danger sm" onclick="delRow(\'funds\',\''+f.id+'\',pageFunds)">Del</button></td></tr>'; });
+    const dh = funds.length ? ('<table><thead><tr><th>Date</th><th>User</th><th>Amount</th><th>Note</th><th>Proof</th><th></th></tr></thead><tbody>'+drows+'</tbody></table>') : '<div class="empty">No deposits yet.</div>';
+    $('fundTable').innerHTML = '<table><thead><tr><th>User</th><th>Fund Received</th><th>Spent</th><th>Balance</th></tr></thead><tbody>'+urows+'</tbody></table><div style="padding:16px 12px"><h3 style="margin-bottom:10px">Deposit history</h3>'+dh+'</div>';
+  } else {
+    const recv = funds.reduce((s,f)=>s+Number(f.amount),0);
+    const spent = exp.filter(e=>e.created_by===ME.id).reduce((s,e)=>s+Number(e.cost),0);
+    const bal = recv - spent;
+    $('fundCards').innerHTML = card('Fund Received',money(recv),'gd')+card('Spent on Accounts',money(spent),'r')+card('Remaining Balance',money(bal),bal>=0?'g':'r');
+    let drows='';
+    funds.forEach(f=>{ drows += '<tr><td>'+f.deposit_date+'</td><td style="color:var(--green2)">'+money(f.amount)+'</td><td>'+esc(f.notes||'')+'</td></tr>'; });
+    $('fundTable').innerHTML = funds.length ? ('<div style="padding:16px"><h3 style="margin-bottom:10px">My deposits</h3><table><thead><tr><th>Date</th><th>Amount</th><th>Note</th></tr></thead><tbody>'+drows+'</tbody></table></div>') : '<div class="empty" style="padding:16px">No fund loaded yet. Ask the admin to load your wallet.</div>';
+  }
+}
+function fundModal(){
+  let opts=''; _expUsers.forEach(u=>{ opts += '<option value="'+esc(u.email)+'">'+esc(u.email.split('@')[0])+'</option>'; });
+  if(!opts) opts='<option value="">(no expense users)</option>';
+  openModal('<h3>Add Fund Deposit</h3>'
+    +'<div class="field"><label>To user *</label><select id="f_user">'+opts+'</select></div>'
+    +'<div class="field"><label>Amount *</label><input id="f_amt" type="number" step="0.01" placeholder="e.g. 5000"></div>'
+    +'<div class="field"><label>Date</label><input id="f_date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+    +'<div class="field"><label>Note (optional)</label><input id="f_note" placeholder="e.g. sent via crypto"></div>'
+    +'<div class="field"><label>Proof screenshot (optional)</label><input id="f_proof" type="file" accept="image/*"></div>'
+    +'<div class="row" style="justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="f_saveBtn" onclick="saveFund()">Save</button></div>');
+}
+async function saveFund(){
+  const rec={user_email:$('f_user').value, amount:Number($('f_amt').value||0), deposit_date:$('f_date').value, notes:$('f_note').value.trim(), created_by:ME.id};
+  if(!rec.user_email||!rec.amount){alert('User and amount are required');return;}
+  const btn=$('f_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  const f=$('f_proof')&&$('f_proof').files[0];
+  if(f){
+    const path='fund-'+Date.now()+'-'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const up=await sb.storage.from('proofs').upload(path,f);
+    if(up.error){alert('Screenshot upload failed: '+up.error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+    rec.proof_path=path;
+  }
+  const ins=await sb.from('funds').insert(rec);
+  if(ins.error){alert(ins.error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct('Add fund', rec.user_email.split('@')[0]+' '+money(rec.amount));
+  closeModal(); pageFunds();
+}
+
+/* ============================================================
+   ALERTS (admin) - payouts needing attention
+============================================================ */
+async function pageAlerts(){
+  $('view').innerHTML=`<div class="page-title">🔔 Alerts</div>
+    <div class="page-sub">Payouts that need your attention</div>
+    <div class="toolbar"><button class="btn gold" onclick="enablePush()">🔔 Enable phone notifications</button></div>
+    <div id="alertBox"><div class="empty">Loading...</div></div>`;
+  const {data}=await sb.from('payouts').select('*').order('payout_date');
+  const p=data||[]; const dayms=86400000;
+  const t=new Date(); t.setHours(0,0,0,0); const today=t.getTime();
+  const pn=x=>Number(x.net_amount!=null?x.net_amount:x.amount);
+  const dueSoon=p.filter(x=>x.status!=='paid'&&x.payout_date&&(new Date(x.payout_date).getTime()-today)>=0&&(new Date(x.payout_date).getTime()-today)<=2*dayms);
+  const overdue=p.filter(x=>(x.status==='pending'||x.status==='submitted')&&(Date.now()-new Date(x.created_at).getTime())>=3*dayms);
+  const pending=p.filter(x=>x.status==='pending');
+  const upcoming=p.filter(x=>x.status==='upcoming');
+  const sec=(title,rows)=>`<div class="panel"><h3>${title} (${rows.length})</h3>${rows.length?`<table><tbody>
+    ${rows.map(x=>`<tr><td>${x.payout_date}</td><td>${esc(x.prop_firm)} ${esc(x.account_size||'')}</td><td>${esc(x.payout_for||'')}</td>
+      <td style="color:var(--green2)">${money(pn(x))}</td><td><span class="pill ${x.status}">${x.status}</span></td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">Nothing here 👍</div>'}</div>`;
+  $('alertBox').innerHTML = sec('🔮 Upcoming payouts',upcoming)
+    + sec('⚠ Due soon (next 2 days)',dueSoon)
+    + sec('🔴 Overdue (3+ days, not cleared)',overdue)
+    + sec('⏳ Pending',pending);
+}
+
+/* ============================================================
+   ACTIVITY (admin)
+============================================================ */
+async function pageActivity(){
+  $('view').innerHTML=`<div class="page-title">Activity Log</div>
+    <div class="page-sub">Audit trail of all changes</div>
+    <div class="panel" style="padding:0"><div id="actTable"></div></div>`;
+  const {data}=await sb.from('activity_logs').select('*').order('created_at',{ascending:false}).limit(200);
+  const rows=data||[];
+  let arows='';
+  rows.forEach(a=>{ arows += '<tr><td>'+new Date(a.created_at).toLocaleString()+'</td><td>'+esc(a.user_email||'')+'</td><td>'+esc(a.action||'')+'</td><td>'+esc(a.details||'')+'</td></tr>'; });
+  $('actTable').innerHTML = rows.length
+    ? '<table><thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody>'+arows+'</tbody></table>'
+    : '<div class="empty">No activity yet.</div>';
+}
+
+/* ============================================================
+   EQUITY TRACKER  (user: hafiz) — fully separate from expenses/payouts
+============================================================ */
+async function pageEquity(){
+  $('view').innerHTML=`<div class="page-title">\u{1F4B9} Equity Tracker</div>
+    <div class="page-sub">Live & breached prop accounts — ye section baaqi CRM (expenses/payouts) se bilkul alag hai.</div>
+    <div class="cards" id="eqCards"></div>
+    <div class="panel"><h3>\u{1F4C5} Monthly Progress</h3>
+      <div class="field" style="max-width:260px"><label>Month</label><select id="eqMonth" onchange="renderEq()"></select></div>
+      <div id="eqMonthOut"></div></div>
+    <div class="toolbar">
+      <input class="grow" id="eqSearch" placeholder="Search firm or notes..." oninput="renderEq()">
+      <button class="btn" onclick="equityModal()">+ Add Account</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="eqTable"></div></div>`;
+  const {data}=await sb.from('equity_accounts').select('*').order('entry_date',{ascending:false}).order('updated_at',{ascending:false});
+  eqData=data||[];
+  const months=buildMonthList(eqData.map(x=>({spent_on:x.entry_date})),[]);
+  $('eqMonth').innerHTML='<option value="all">All months</option>'+months.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  renderEq();
+}
+function eqSizeToNum(s){ if(!s) return 0; s=String(s).trim().toUpperCase().replace(/[$,\s]/g,''); const m=s.match(/^([0-9]*\.?[0-9]+)(K|M)?$/); if(!m) return Number(s)||0; let n=parseFloat(m[1]); if(m[2]==='K')n*=1000; if(m[2]==='M')n*=1000000; return n; }
+function eqBal(x){ return x.status==='breached' ? Number(x.equity||0) : eqSizeToNum(x.account_size); }
+function renderEq(){
+  const isAdmin=ME.role==='admin';
+  const q=($('eqSearch').value||'').toLowerCase();
+  const mSel=($('eqMonth')||{}).value||'all';
+  let rows=eqData.filter(x=>((x.prop_firm||'')+' '+(x.account_size||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  const live=eqData.filter(x=>x.status!=='breached'), breached=eqData.filter(x=>x.status==='breached');
+  const liveSum=live.reduce((s,x)=>s+eqBal(x),0), brSum=breached.reduce((s,x)=>s+Number(x.equity||0),0);
+  $('eqCards').innerHTML=card('Total LIVE balance',money(liveSum),'g')+card('Live accounts',String(live.length),'gd')
+    +card('Total BREACHED balance',money(brSum),'r')+card('Breached accounts',String(breached.length),'r');
+  if(mSel==='all'){
+    $('eqMonthOut').innerHTML='<div style="color:var(--muted);font-size:13px">Kisi month ko select karein us month ki progress dekhne ke liye (June, July, etc.).</div>';
+  } else {
+    const ml=eqData.filter(x=>String(x.entry_date||'').slice(0,7)===mSel && x.status!=='breached');
+    const mb=eqData.filter(x=>String(x.entry_date||'').slice(0,7)===mSel && x.status==='breached');
+    const mlSum=ml.reduce((s,x)=>s+eqBal(x),0), mbSum=mb.reduce((s,x)=>s+Number(x.equity||0),0);
+    $('eqMonthOut').innerHTML=`<div class="cards">${card('Live added',money(mlSum),'g')}${card('Live accounts',String(ml.length),'gd')}${card('Breached added',money(mbSum),'r')}${card('Breached accounts',String(mb.length),'r')}</div>`;
+  }
+  $('eqTable').innerHTML = rows.length?`<table><thead><tr>
+    <th>Date</th><th>Prop Firm</th><th>Account</th><th>Status</th><th>Balance</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.entry_date||''}</td><td>${esc(x.prop_firm)}</td><td>${esc(x.account_size||'')}</td>
+      <td><span class="pill ${x.status==='breached'?'submitted':'paid'}">${esc(x.status||'live')}</span></td>
+      <td style="color:${x.status==='breached'?'#fca5a5':'var(--green2)'};font-weight:600">${money(eqBal(x))}</td>
+      <td>${esc(x.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='equityModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('equity_accounts','${x.id}',pageEquity)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="4" style="font-weight:700">Live total (shown)</td>
+      <td style="font-weight:700;color:var(--green2)">${money(rows.filter(x=>x.status!=='breached').reduce((s,x)=>s+eqBal(x),0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No accounts here. Click “+ Add Account”.</div>';
+}
+function equityModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Account</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Status *</label>
+      <select id="e_status" onchange="eqToggle()">${['live','breached'].map(v=>`<option ${((x.status||'live')===v)?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div class="field" style="flex:1"><label>Entry date *</label>
+      <input id="e_date" type="date" value="${x.entry_date||new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="field">${pickField('e_firm','Prop Firm *',EQ_FIRMS,x.prop_firm)}</div>
+    <div class="field">${pickField('e_acc','Account Size *',EQ_SIZES,x.account_size)}</div>
+    <div class="field"><label>Balance</label>
+      <input id="e_eq" type="number" step="0.01" value="${x.equity!=null?x.equity:''}">
+      <div id="e_eqNote" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div>
+    <div class="field"><label>Notes</label><textarea id="e_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="e_saveBtn" onclick="saveEquity('${x.id||''}')">Save</button></div>`);
+  const ss=document.getElementById('e_acc_sel'), so=document.getElementById('e_acc_oth');
+  if(ss) ss.addEventListener('change',eqToggle);
+  if(so) so.addEventListener('input',eqToggle);
+  eqToggle();
+}
+function eqToggle(){
+  const st=($('e_status')||{}).value, eqI=$('e_eq'), note=$('e_eqNote'); if(!eqI)return;
+  const sz=pickVal('e_acc');
+  if(st==='live'){
+    const v=eqSizeToNum(sz);
+    eqI.value=v||''; eqI.readOnly=true; eqI.style.opacity=.6;
+    if(note) note.textContent='Live: balance = account size ('+(sz||'—')+' = '+money(v)+'). Auto-filled — manually likhne ki zaroorat nahi.';
+  } else {
+    eqI.readOnly=false; eqI.style.opacity=1;
+    if(note) note.textContent='Breached: yahan balance manually update karein. Ye LIVE sum me count nahi hoga — sirf progress me alag dikhega.';
+  }
+}
+async function saveEquity(id){
+  const status=($('e_status').value)||'live';
+  const size=pickVal('e_acc');
+  const equity = status==='live' ? eqSizeToNum(size) : Number($('e_eq').value||0);
+  const rec={prop_firm:pickVal('e_firm'),account_size:size,status,equity,
+    entry_date:$('e_date').value||new Date().toISOString().slice(0,10),
+    notes:$('e_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.prop_firm){alert('Prop firm is required');return;}
+  if(!rec.account_size){alert('Account size is required');return;}
+  const btn=$('e_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('equity_accounts').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('equity_accounts').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update equity':'Add equity',rec.prop_firm+' '+rec.status+' '+money(rec.equity));
+  closeModal(); pageEquity();
+}
+
+/* ============================================================
+   PKR MONTHLY EXPENSES  (user: suh) — fully separate from everything
+============================================================ */
+function pkrMonths(){
+  const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const out=[]; let y=2026,m=6;
+  for(let i=0;i<13;i++){ out.push({v:y+'-'+String(m).padStart(2,'0'),l:MN[m-1]+' '+y}); m++; if(m>12){m=1;y++;} }
+  return out;
+}
+async function pagePkr(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">\u{1F9FE} PKR Monthly Expenses</div>
+    <div class="page-sub">Suh ke monthly kharche (PKR) — ye section baaqi CRM se bilkul alag hai.</div>
+    <div class="cards" id="pkrCards"></div>
+    <div class="panel"><h3>\u{1F4C5} Month</h3>
+      <div class="field" style="max-width:260px"><label>Select month</label><select id="pkrMonth" onchange="renderPkr()"></select></div>
+      <div id="pkrMonthOut"></div></div>
+    <div class="toolbar">
+      <input class="grow" id="pkrSearch" placeholder="Search category or notes..." oninput="renderPkr()">
+      ${isAdmin?`<button class="btn gold" onclick="pkrFundModal()">\u{1F3E6} Add Fund (to Suh)</button>`:''}
+      <button class="btn" onclick="pkrExpModal()">+ Add Expense</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="pkrTable"></div></div>`;
+  const [{data:ex=[]},{data:fu=[]}]=await Promise.all([
+    sb.from('pkr_expenses').select('*').order('entry_date',{ascending:false}),
+    sb.from('pkr_funds').select('*').order('fund_date',{ascending:false})]);
+  pkrExpData=ex||[]; pkrFundData=fu||[];
+  const ms=pkrMonths();
+  $('pkrMonth').innerHTML='<option value="all">All months</option>'+ms.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  renderPkr();
+}
+function renderPkr(){
+  const isAdmin=ME.role==='admin';
+  const q=($('pkrSearch').value||'').toLowerCase();
+  const mSel=($('pkrMonth')||{}).value||'all';
+  let rows=pkrExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  const received=pkrFundData.reduce((s,x)=>s+Number(x.amount||0),0);
+  const spent=pkrExpData.reduce((s,x)=>s+Number(x.amount||0),0);
+  const bal=received-spent;
+  $('pkrCards').innerHTML=card('Received from admin',pkr(received),'g')+card('Expense total',pkr(spent),'r')+card('Balance left',pkr(bal),bal>=0?'gd':'r');
+  if(mSel==='all'){
+    $('pkrMonthOut').innerHTML='<div style="color:var(--muted);font-size:13px">Kisi month ko select karein us month ka kharcha dekhne ke liye.</div>';
+  } else {
+    const mrows=pkrExpData.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+    const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
+    $('pkrMonthOut').innerHTML=`<div class="cards">${card('This month spent',pkr(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
+  }
+  $('pkrTable').innerHTML = rows.length?`<table><thead><tr>
+    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
+      <td style="color:#fca5a5;font-weight:600">${pkr(x.amount)}</td>
+      <td>${esc(x.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='pkrExpModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('pkr_expenses','${x.id}',pagePkr)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
+      <td style="font-weight:700;color:#fca5a5">${pkr(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+}
+function pkrExpModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Expense (PKR)</h3>
+    <div class="row"><div class="field" style="flex:1">${pickField('p_cat','Category *',PKR_CATS,x.category)}</div>
+      <div class="field" style="flex:1"><label>Amount (PKR) *</label>
+      <input id="p_amt" type="number" step="1" value="${x.amount!=null?x.amount:''}"></div></div>
+    <div class="field"><label>Date *</label><input id="p_date" type="date" value="${x.entry_date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="p_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="p_saveBtn" onclick="savePkrExp('${x.id||''}')">Save</button></div>`);
+}
+async function savePkrExp(id){
+  const rec={category:pickVal('p_cat'),amount:Number($('p_amt').value||0),
+    entry_date:$('p_date').value||new Date().toISOString().slice(0,10),
+    notes:$('p_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.category){alert('Category is required');return;}
+  const btn=$('p_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('pkr_expenses').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('pkr_expenses').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update PKR expense':'Add PKR expense',rec.category+' '+pkr(rec.amount));
+  closeModal(); pagePkr();
+}
+function pkrFundModal(){
+  openModal(`<h3>Add Fund to Suh (PKR)</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Amount (PKR) *</label>
+      <input id="pf_amt" type="number" step="1"></div>
+      <div class="field" style="flex:1"><label>Date *</label>
+      <input id="pf_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="field"><label>Notes</label><textarea id="pf_notes" rows="2"></textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="pf_saveBtn" onclick="savePkrFund()">Save</button></div>`);
+}
+async function savePkrFund(){
+  const rec={amount:Number($('pf_amt').value||0),fund_date:$('pf_date').value||new Date().toISOString().slice(0,10),
+    notes:$('pf_notes').value.trim(),created_by:ME.id};
+  if(!(rec.amount>0)){alert('Enter a valid amount');return;}
+  const btn=$('pf_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  const {error}=await sb.from('pkr_funds').insert(rec);
+  if(error){alert(error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct('Add PKR fund',pkr(rec.amount));
+  closeModal(); pagePkr();
+}
+
+/* ============================================================
+   RIYAL MONTHLY EXPENSES  (user: Ali) — fully separate, currency SAR
+============================================================ */
+async function pageRiyal(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">\u{1F4B5} Riyal Monthly Expenses</div>
+    <div class="page-sub">Ali ke monthly kharche (Riyal / SAR) — ye section baaqi CRM se bilkul alag hai.</div>
+    <div class="cards" id="riCards"></div>
+    <div class="panel"><h3>\u{1F4C5} Month</h3>
+      <div class="field" style="max-width:260px"><label>Select month</label><select id="riMonth" onchange="renderRiyal()"></select></div>
+      <div id="riMonthOut"></div></div>
+    <div class="toolbar">
+      <input class="grow" id="riSearch" placeholder="Search category or notes..." oninput="renderRiyal()">
+      ${isAdmin?`<button class="btn gold" onclick="riyalFundModal()">\u{1F3E6} Add Fund (to Ali)</button>`:''}
+      <button class="btn" onclick="riyalExpModal()">+ Add Expense</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="riTable"></div></div>`;
+  const [{data:ex=[]},{data:fu=[]}]=await Promise.all([
+    sb.from('riyal_expenses').select('*').order('entry_date',{ascending:false}),
+    sb.from('riyal_funds').select('*').order('fund_date',{ascending:false})]);
+  riyalExpData=ex||[]; riyalFundData=fu||[];
+  const ms=pkrMonths();
+  $('riMonth').innerHTML='<option value="all">All months</option>'+ms.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  renderRiyal();
+}
+function renderRiyal(){
+  const isAdmin=ME.role==='admin';
+  const q=($('riSearch').value||'').toLowerCase();
+  const mSel=($('riMonth')||{}).value||'all';
+  let rows=riyalExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  const received=riyalFundData.reduce((s,x)=>s+Number(x.amount||0),0);
+  const spent=riyalExpData.reduce((s,x)=>s+Number(x.amount||0),0);
+  const bal=received-spent;
+  $('riCards').innerHTML=card('Received from admin',sar(received),'g')+card('Expense total',sar(spent),'r')+card('Balance left',sar(bal),bal>=0?'gd':'r');
+  if(mSel==='all'){
+    $('riMonthOut').innerHTML='<div style="color:var(--muted);font-size:13px">Kisi month ko select karein us month ka kharcha dekhne ke liye.</div>';
+  } else {
+    const mrows=riyalExpData.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+    const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
+    $('riMonthOut').innerHTML=`<div class="cards">${card('This month spent',sar(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
+  }
+  $('riTable').innerHTML = rows.length?`<table><thead><tr>
+    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
+      <td style="color:#fca5a5;font-weight:600">${sar(x.amount)}</td>
+      <td>${esc(x.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='riyalExpModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('riyal_expenses','${x.id}',pageRiyal)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
+      <td style="font-weight:700;color:#fca5a5">${sar(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+}
+function riyalExpModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Expense (Riyal)</h3>
+    <div class="row"><div class="field" style="flex:1">${pickField('r_cat','Category *',PKR_CATS,x.category)}</div>
+      <div class="field" style="flex:1"><label>Amount (SAR) *</label>
+      <input id="r_amt" type="number" step="1" value="${x.amount!=null?x.amount:''}"></div></div>
+    <div class="field"><label>Date *</label><input id="r_date" type="date" value="${x.entry_date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="r_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="r_saveBtn" onclick="saveRiyalExp('${x.id||''}')">Save</button></div>`);
+}
+async function saveRiyalExp(id){
+  const rec={category:pickVal('r_cat'),amount:Number($('r_amt').value||0),
+    entry_date:$('r_date').value||new Date().toISOString().slice(0,10),
+    notes:$('r_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.category){alert('Category is required');return;}
+  const btn=$('r_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('riyal_expenses').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('riyal_expenses').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update Riyal expense':'Add Riyal expense',rec.category+' '+sar(rec.amount));
+  closeModal(); pageRiyal();
+}
+function riyalFundModal(){
+  openModal(`<h3>Add Fund to Ali (Riyal)</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Amount (SAR) *</label>
+      <input id="rf_amt" type="number" step="1"></div>
+      <div class="field" style="flex:1"><label>Date *</label>
+      <input id="rf_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="field"><label>Notes</label><textarea id="rf_notes" rows="2"></textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="rf_saveBtn" onclick="saveRiyalFund()">Save</button></div>`);
+}
+async function saveRiyalFund(){
+  const rec={amount:Number($('rf_amt').value||0),fund_date:$('rf_date').value||new Date().toISOString().slice(0,10),
+    notes:$('rf_notes').value.trim(),created_by:ME.id};
+  if(!(rec.amount>0)){alert('Enter a valid amount');return;}
+  const btn=$('rf_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  const {error}=await sb.from('riyal_funds').insert(rec);
+  if(error){alert(error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct('Add Riyal fund',sar(rec.amount));
+  closeModal(); pageRiyal();
+}
+
+/* ============================================================
+   READY TO BUY  (user: Futures) — breached accounts to re-buy, fully separate
+============================================================ */
+async function pageBuy(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">\u{1F6D2} Ready to Buy</div>
+    <div class="page-sub">Breached accounts + buying record (Futures user) — ye section baaqi CRM se bilkul alag hai.</div>
+    <div class="cards" id="buyCards"></div>
+    <div class="toolbar">
+      <input class="grow" id="buySearch" placeholder="Search profile, firm or notes..." oninput="renderBuy()">
+      <button class="btn ghost" onclick="purchaseModal()">\u{1F4B5} Record Purchase</button>
+      <button class="btn" onclick="buyModal()">+ Add Breached Account</button>
+    </div>
+    <div class="panel"><h3>\u{1F6D2} Ready to Buy</h3><div id="buyReadyTable"></div></div>
+    <div class="panel"><h3>\u{1F4B5} Purchases (buying record)</h3><div id="buyPurchTable"></div></div>
+    <div id="buyAdmin"></div>
+    <div class="panel"><h3>✅ Bought accounts (history)</h3><div id="buyDoneTable"></div></div>`;
+  const [{data:acc=[]},{data:pur=[]}]=await Promise.all([
+    sb.from('buy_accounts').select('*').order('added_date',{ascending:false}),
+    sb.from('buy_purchases').select('*').order('purchase_date',{ascending:false})]);
+  buyData=acc||[]; buyPurch=pur||[];
+  renderBuy();
+}
+function buyRows(list,done,isAdmin){
+  const invest=isAdmin && !done; const per=BUY_RATE_PER_ACC*BUY_ACCS_PER_FIRM;
+  if(!list.length) return '<div class="empty">'+(done?'Abhi tak kuch bought nahi.':'Koi account nahi. Click “+ Add Breached Account”.')+'</div>';
+  return `<table><thead><tr>
+    <th>${done?'Bought on':'Added'}</th><th>Profile</th><th>Firm</th><th>Account</th><th>Notes</th>${invest?'<th>Invest need</th>':''}<th></th></tr></thead><tbody>
+    ${list.map(x=>`<tr>
+      <td>${done?(x.bought_date||''):(x.added_date||'')}</td>
+      <td style="font-weight:600">${esc(x.profile_name||'')}</td>
+      <td>${esc(x.firm||'')}</td><td>${esc(x.account_size||'')}</td>
+      <td>${esc(x.notes||'')}</td>
+      ${invest?`<td style="color:var(--gold2);font-weight:600">${money(per)}</td>`:''}
+      <td style="text-align:right;white-space:nowrap">
+        ${done?'':`<button class="btn sm" onclick='purchaseModal("${x.id}",${JSON.stringify({profile_name:x.profile_name,firm:x.firm})})'>Bought for</button>`}
+        <button class="btn ghost sm" onclick='buyModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('buy_accounts','${x.id}',pageBuy)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody>${invest?`<tfoot><tr><td colspan="5" style="font-weight:700">Total investment needed (${list.length} firms × ${money(per)})</td><td style="font-weight:700;color:var(--gold2)">${money(list.length*per)}</td><td></td></tr></tfoot>`:''}</table>`;
+}
+function renderBuy(){
+  const isAdmin=ME.role==='admin';
+  const q=($('buySearch').value||'').toLowerCase();
+  const match=x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.account_size||'')+' '+(x.notes||'')).toLowerCase().includes(q);
+  const ready=buyData.filter(x=>x.status!=='bought'&&match(x));
+  const done=buyData.filter(x=>x.status==='bought'&&match(x));
+  const purch=buyPurch.filter(x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  const totalSpent=buyPurch.reduce((s,x)=>s+Number(x.total||0),0);
+  let cards=card('Ready to Buy',String(buyData.filter(x=>x.status!=='bought').length),'gd')
+    +card('Bought accounts',String(buyData.filter(x=>x.status==='bought').length),'g');
+  if(isAdmin){
+    const mkey=new Date().toISOString().slice(0,7);
+    const monthSpent=buyPurch.filter(x=>String(x.purchase_date||'').slice(0,7)===mkey).reduce((s,x)=>s+Number(x.total||0),0);
+    const invNeed=buyData.filter(x=>x.status!=='bought').length*BUY_RATE_PER_ACC*BUY_ACCS_PER_FIRM;
+    cards+=card('Total buying ($ all time)',money(totalSpent),'r')+card('This month buying',money(monthSpent),'r')+card('Investment needed (ready)',money(invNeed),'gd');
+  }
+  $('buyCards').innerHTML=cards;
+  $('buyReadyTable').innerHTML=buyRows(ready,false,isAdmin);
+  $('buyDoneTable').innerHTML=buyRows(done,true,isAdmin);
+  $('buyPurchTable').innerHTML = purch.length?`<table><thead><tr>
+    <th>Date</th><th>Profile</th><th>Firm</th>${isAdmin?'<th>Per acct</th><th>Accounts</th>':''}<th>Total</th><th></th></tr></thead><tbody>
+    ${purch.map(x=>`<tr>
+      <td>${x.purchase_date||''}</td><td style="font-weight:600">${esc(x.profile_name||'')}</td><td>${esc(x.firm||'')}</td>
+      ${isAdmin?`<td>${money(x.amount_per)}</td><td>${x.num_accounts}</td>`:''}
+      <td style="color:#fca5a5;font-weight:600">${money(x.total)}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='purchaseModal(null,${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('buy_purchases','${x.id}',pageBuy)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody>${isAdmin?`<tfoot><tr><td colspan="5" style="font-weight:700">Total buying</td><td style="font-weight:700;color:#fca5a5">${money(purch.reduce((s,x)=>s+Number(x.total||0),0))}</td><td></td></tr></tfoot>`:''}</table>`:'<div class="empty">Abhi tak koi purchase record nahi.</div>';
+  if(isAdmin) renderBuyAdmin(); else { const a=$('buyAdmin'); if(a) a.innerHTML=''; }
+}
+function renderBuyAdmin(){
+  const agg=(keyfn)=>{const m={}; buyPurch.forEach(x=>{const k=keyfn(x)||'-'; m[k]=(m[k]||0)+Number(x.total||0);}); return m;};
+  const sheet=(title,pairs)=>`<div class="panel"><h3>${title}</h3>${pairs.length?`<table><tbody>
+    ${pairs.map(p=>`<tr><td>${esc(p[0])}</td><td style="text-align:right;color:#fca5a5;font-weight:600">${money(p[1])}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td style="font-weight:700">Total</td><td style="text-align:right;font-weight:700">${money(pairs.reduce((s,p)=>s+p[1],0))}</td></tr></tfoot></table>`:'<div class="empty">No data.</div>'}</div>`;
+  const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthPairs=Object.entries(agg(x=>String(x.purchase_date||'').slice(0,7))).sort((a,b)=>a[0]<b[0]?1:-1)
+    .map(p=>{const s=p[0].split('-'); return [ (MN[Number(s[1])-1]||p[0])+' '+s[0], p[1]]; });
+  const firmPairs=Object.entries(agg(x=>x.firm)).sort((a,b)=>b[1]-a[1]);
+  const profPairs=Object.entries(agg(x=>x.profile_name)).sort((a,b)=>b[1]-a[1]);
+  $('buyAdmin').innerHTML = sheet('\u{1F4C5} By Month (buying expense)',monthPairs)
+    + sheet('\u{1F3E2} By Firm (invested)',firmPairs)
+    + sheet('\u{1F464} By Profile (invested)',profPairs);
+}
+function buyModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Breached Account</h3>
+    <div class="field">${pickField('b_prof','Profile name *',BUY_PROFILES,x.profile_name)}</div>
+    <div class="field">${pickField('b_firm','Firm *',BUY_FIRMS,x.firm)}</div>
+    <div class="row"><div class="field" style="flex:1"><label>Account size (optional)</label>
+      <input id="b_size" value="${esc(x.account_size||'150K')}" placeholder="e.g. 150K"></div>
+      <div class="field" style="flex:1"><label>Date *</label>
+      <input id="b_date" type="date" value="${x.added_date||new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="field"><label>Notes</label><textarea id="b_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="b_saveBtn" onclick="saveBuy('${x.id||''}')">Save</button></div>`);
+}
+async function saveBuy(id){
+  const rec={profile_name:pickVal('b_prof'),firm:pickVal('b_firm'),account_size:$('b_size').value.trim(),
+    added_date:$('b_date').value||new Date().toISOString().slice(0,10),notes:$('b_notes').value.trim(),
+    updated_at:new Date().toISOString()};
+  if(!rec.profile_name){alert('Profile name is required');return;}
+  if(!rec.firm){alert('Firm is required');return;}
+  const btn=$('b_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('buy_accounts').update(rec).eq('id',id));}
+  else{rec.status='ready'; rec.created_by=ME.id; ({error:err}=await sb.from('buy_accounts').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Edit buy account':'Add breached (ready to buy)',rec.profile_name+' '+rec.firm);
+  closeModal(); pageBuy();
+}
+function purchaseModal(accountId,x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Record'} Purchase</h3>
+    <div class="field">${pickField('pu_prof','Profile name *',BUY_PROFILES,x.profile_name)}</div>
+    <div class="field">${pickField('pu_firm','Prop firm *',BUY_FIRMS,x.firm)}</div>
+    <div class="row"><div class="field" style="flex:1"><label>Amount per account ($) *</label>
+      <input id="pu_amt" type="number" step="0.01" value="${x.amount_per!=null?x.amount_per:''}" oninput="puCalc()"></div>
+      <div class="field" style="flex:1"><label>No. of accounts *</label>
+      <input id="pu_num" type="number" step="1" value="${x.num_accounts!=null?x.num_accounts:1}" oninput="puCalc()"></div></div>
+    <div id="pu_total" class="msg ok" style="margin-bottom:14px"></div>
+    <div class="field"><label>Date *</label><input id="pu_date" type="date" value="${x.purchase_date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="pu_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <input type="hidden" id="pu_acc" value="${accountId||''}">
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="pu_saveBtn" onclick="savePurchase('${x.id||''}')">Save</button></div>`);
+  puCalc();
+}
+function puCalc(){
+  const a=Number(($('pu_amt')||{}).value||0), n=Number(($('pu_num')||{}).value||0);
+  const el=$('pu_total'); if(el) el.innerHTML='Total buying: <b>'+money(a*n)+'</b>  ('+money(a)+' × '+n+' accounts)';
+}
+async function savePurchase(id){
+  const a=Number($('pu_amt').value||0), n=Number($('pu_num').value||0);
+  const rec={profile_name:pickVal('pu_prof'),firm:pickVal('pu_firm'),amount_per:a,num_accounts:n,
+    total:Math.round(a*n*100)/100,purchase_date:$('pu_date').value||new Date().toISOString().slice(0,10),
+    notes:$('pu_notes').value.trim()};
+  if(!rec.profile_name){alert('Profile is required');return;}
+  if(!rec.firm){alert('Firm is required');return;}
+  const btn=$('pu_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('buy_purchases').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('buy_purchases').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  const accId=($('pu_acc')||{}).value;
+  if(accId && !id){ await sb.from('buy_accounts').update({status:'bought',bought_date:new Date().toISOString().slice(0,10),updated_at:new Date().toISOString()}).eq('id',accId); }
+  logAct(id?'Edit purchase':'Record purchase',rec.profile_name+' '+rec.firm+' '+money(rec.total));
+  closeModal(); pageBuy();
+}
+
+/* ---------- shared helpers ---------- */
+async function delRow(table,id,after){
+  if(!confirm('Delete this record?'))return;
+  const r=await sb.from(table).delete().eq('id',id);
+  if(r.error){alert(r.error.message);return;} logAct('Delete '+table,id); after();
+}
+function openModal(html){$('modalRoot').innerHTML='<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">'+html+'</div></div>';}
+function closeModal(){$('modalRoot').innerHTML='';}
+
+/* ---------- start ---------- */
+if(sb){ sb.auth.onAuthStateChange(async(event)=>{
+  if(event==='PASSWORD_RECOVERY'){
+    let np=prompt('Set a NEW admin password (minimum 6 characters):');
+    if(np===null) return;
+    if(np.length<6){ alert('Password must be at least 6 characters.'); return; }
+    const {error}=await sb.auth.updateUser({password:np});
+    alert(error?('Could not update password: '+error.message):'\u2705 Admin password updated. Ab naye password se log in karein.');
+  }
+}); }
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+(async()=>{
+  if(!sb){ authMsg('Setup not finished: Supabase keys are missing.'); return; }
+  const {data:{session}} = await sb.auth.getSession();
+  if(session) boot();
+})();
+</script>
+</body>
+</html>
