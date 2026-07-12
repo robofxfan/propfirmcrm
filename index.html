@@ -1143,8 +1143,9 @@ function renderBuy(){
   const isAdmin=ME.role==='admin';
   const q=($('buySearch').value||'').toLowerCase();
   const match=x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.account_size||'')+' '+(x.notes||'')).toLowerCase().includes(q);
-  const ready=buyData.filter(x=>x.status!=='bought'&&match(x));
-  const done=buyData.filter(x=>x.status==='bought'&&match(x));
+  const byProfile=(a,b)=>String(a.profile_name||'').toLowerCase().localeCompare(String(b.profile_name||'').toLowerCase())||String(b.added_date||'').localeCompare(String(a.added_date||''));
+  const ready=buyData.filter(x=>x.status!=='bought'&&match(x)).sort(byProfile);
+  const done=buyData.filter(x=>x.status==='bought'&&match(x)).sort(byProfile);
   const purch=buyPurch.filter(x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.notes||'')).toLowerCase().includes(q));
   const totalSpent=buyPurch.reduce((s,x)=>s+Number(x.total||0),0);
   let cards=card('Ready to Buy',String(buyData.filter(x=>x.status!=='bought').length),'gd')
