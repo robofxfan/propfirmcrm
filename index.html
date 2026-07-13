@@ -1263,6 +1263,7 @@ function hedgeSuggestions(list,tol){
   const pairs=[];
   for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){
     const a=list[i], b=list[j];
+    if((a.firm||'').trim().toLowerCase()===(b.firm||'').trim().toLowerCase()) continue;
     const diff=Math.abs(Number(a.equity||0)-Number(b.equity||0));
     if(diff<=tol) pairs.push({a,b,diff});
   }
@@ -1320,7 +1321,7 @@ function hedgeModal(x){
   openModal(`<h3>${ed?'Edit':'Add'} Hedge Account</h3>
     <div class="field">${pickField('h_prof','Profile name *',BUY_PROFILES,x.profile_name)}</div>
     <div class="field">${pickField('h_firm','Prop firm *',BUY_FIRMS,x.firm)}</div>
-    <div class="row"><div class="field" style="flex:1">${pickField('h_size','Account size',EQ_SIZES,x.account_size)}</div>
+    <div class="row"><div class="field" style="flex:1">${pickField('h_size','Account size',EQ_SIZES,x.account_size||'150K')}</div>
       <div class="field" style="flex:1"><label>Current equity / balance ($) *</label>
       <input id="h_eq" type="number" step="0.01" value="${x.equity!=null?x.equity:''}"></div></div>
     <div class="field"><label>Notes</label><textarea id="h_notes" rows="2">${esc(x.notes||'')}</textarea></div>
