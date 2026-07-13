@@ -1293,7 +1293,7 @@ async function hedgePage(type){
     <div class="toolbar">
       <input class="grow" id="hedgeSearch" placeholder="Search profile or firm..." oninput="renderHedge()">
       <div style="display:flex;align-items:center;gap:6px"><label style="margin:0;white-space:nowrap">Max equity diff ($)</label>
-        <input id="hedgeTol" type="number" step="100" value="1000" style="width:110px" oninput="renderHedge()"></div>
+        <input id="hedgeTol" type="number" step="100" value="3000" style="width:110px" oninput="renderHedge()"></div>
       <button class="btn" onclick="hedgeModal()">+ Add Account</button>
     </div>
     <div class="panel"><h3>${cfg.emoji} Suggested Hedge Pairs</h3><div id="hedgeSugTable"></div></div>
@@ -1308,7 +1308,7 @@ function renderHedge(){
   const isAdmin=ME.role==='admin';
   const type=hedgeType;
   const q=($('hedgeSearch').value||'').toLowerCase();
-  const tol=Number(($('hedgeTol')||{}).value||1000);
+  const tol=Number(($('hedgeTol')||{}).value||3000);
   const K=x=>((x.profile_name||'').trim().toLowerCase()+'|'+(x.firm||'').trim().toLowerCase());
   const typed=hedgeData.filter(a=>((a.acct_type||'demo')===type));   // sirf is section (demo/sim/live) ke accounts
   const breached=new Set(hedgeBuy.filter(b=>b.status!=='bought').map(K));
