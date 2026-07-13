@@ -194,7 +194,7 @@ const BUY_PROFILES=['Majid','Ali','Hassan','Talib','Kaleem','Prince','SP','usman
 const BUY_FIRMS=['Topstep','Tradeify','Lucid','FundedNext','FundedSeat'];
 const BUY_RATE_PER_ACC=250; const BUY_ACCS_PER_FIRM=5;
 let buyData=[]; let buyPurch=[];
-let hedgeData=[];
+let hedgeData=[]; let hedgeBuy=[];
 function pickField(id,label,opts,cur){
   cur=cur||''; const inList=opts.includes(cur);
   return `<label>${esc(label)}</label>
@@ -1283,19 +1283,28 @@ async function pageHedge(){
     </div>
     <div class="panel"><h3>\u{1F517} Suggested Hedge Pairs</h3><div id="hedgeSugTable"></div></div>
     <div class="panel"><h3>All Accounts</h3><div id="hedgeTable"></div></div>`;
-  const {data}=await sb.from('hedge_accounts').select('*').order('account_size').order('equity');
-  hedgeData=data||[];
+  const [{data:h=[]},{data:b=[]}]=await Promise.all([
+    sb.from('hedge_accounts').select('*').order('account_size').order('equity'),
+    sb.from('buy_accounts').select('*')]);
+  hedgeData=h||[]; hedgeBuy=b||[];
   renderHedge();
 }
 function renderHedge(){
   const isAdmin=ME.role==='admin';
   const q=($('hedgeSearch').value||'').toLowerCase();
   const tol=Number(($('hedgeTol')||{}).value||1000);
-  const rows=hedgeData.filter(x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.account_size||'')).toLowerCase().includes(q));
-  const sug=hedgeSuggestions(hedgeData,tol);
-  $('hedgeCards').innerHTML=card('Total accounts',String(hedgeData.length),'gd')+card('Suggested pairs',String(sug.length),'g');
+  const K=x=>((x.profile_name||'').trim().toLowerCase()+'|'+(x.firm||'').trim().toLowerCase());
+  const breached=new Set(hedgeBuy.filter(b=>b.status!=='bought').map(K));
+  const boughtT={};
+  hedgeBuy.filter(b=>b.status==='bought').forEach(b=>{const k=K(b); const t=new Date(b.updated_at||b.bought_date||b.created_at||0).getTime(); if(!boughtT[k]||t>boughtT[k]) boughtT[k]=t;});
+  const isOpen=a=>{ if(a.status!=='traded') return true; const t=new Date(a.updated_at||0).getTime(); return !!(boughtT[K(a)]&&boughtT[K(a)]>t); };
+  const avail=hedgeData.filter(a=>!breached.has(K(a)));        // Ready-to-Buy me breached ho to hide
+  const openAccts=avail.filter(isOpen);                        // traded nahi (ya buy hone ke baad reset)
+  const rows=avail.filter(x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.account_size||'')).toLowerCase().includes(q));
+  const sug=hedgeSuggestions(openAccts,tol);
+  $('hedgeCards').innerHTML=card('Available accounts',String(avail.length),'gd')+card('Suggested pairs',String(sug.length),'g');
   $('hedgeSugTable').innerHTML = sug.length?`<table><thead><tr>
-    <th>Account A</th><th>Equity A</th><th></th><th>Account B</th><th>Equity B</th><th>Diff</th></tr></thead><tbody>
+    <th>Account A</th><th>Equity A</th><th></th><th>Account B</th><th>Equity B</th><th>Diff</th><th></th></tr></thead><tbody>
     ${sug.map(p=>`<tr>
       <td style="font-weight:600">${esc(p.a.profile_name||'')} <span style="color:var(--muted)">(${esc(p.a.firm||'')} ${esc(p.a.account_size||'')})</span></td>
       <td style="color:var(--green2)">${money(p.a.equity)}</td>
@@ -1303,18 +1312,30 @@ function renderHedge(){
       <td style="font-weight:600">${esc(p.b.profile_name||'')} <span style="color:var(--muted)">(${esc(p.b.firm||'')} ${esc(p.b.account_size||'')})</span></td>
       <td style="color:var(--green2)">${money(p.b.equity)}</td>
       <td style="font-weight:700;color:${p.diff===0?'var(--green2)':'var(--gold2)'}">${money(p.diff)}</td>
+      <td style="text-align:right"><button class="btn sm" onclick="markHedgeDone('${p.a.id}','${p.b.id}')">Done</button></td>
     </tr>`).join('')}
-    </tbody></table>`:'<div class="empty">Koi hedge pair nahi mila (diff ≤ '+money(tol)+'). Zyada accounts add karein ya diff barhaayein.</div>';
+    </tbody></table>`:'<div class="empty">Koi hedge pair nahi mila (diff \u2264 '+money(tol)+'). Zyada accounts add karein ya diff barhaayein.</div>';
   $('hedgeTable').innerHTML = rows.length?`<table><thead><tr>
-    <th>Profile</th><th>Firm</th><th>Account</th><th>Equity</th><th>Notes</th><th></th></tr></thead><tbody>
+    <th>Profile</th><th>Firm</th><th>Account</th><th>Equity</th><th>Status</th><th>Notes</th><th></th></tr></thead><tbody>
     ${rows.map(x=>`<tr>
       <td style="font-weight:600">${esc(x.profile_name||'')}</td><td>${esc(x.firm||'')}</td><td>${esc(x.account_size||'')}</td>
-      <td style="color:var(--green2);font-weight:600">${money(x.equity)}</td><td>${esc(x.notes||'')}</td>
+      <td style="color:var(--green2);font-weight:600">${money(x.equity)}</td>
+      <td><span class="pill ${isOpen(x)?'paid':'submitted'}">${isOpen(x)?'open':'traded'}</span></td>
+      <td>${esc(x.notes||'')}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn ghost sm" onclick='hedgeModal(${JSON.stringify(x)})'>Edit</button>
         ${isAdmin?`<button class="btn danger sm" onclick="delRow('hedge_accounts','${x.id}',pageHedge)">Del</button>`:''}
       </td></tr>`).join('')}
-    </tbody></table>`:'<div class="empty">Koi account nahi. Click “+ Add Account”.</div>';
+    </tbody></table>`:'<div class="empty">Koi account nahi (ya sab Ready-to-Buy me breached hain). Click \u201C+ Add Account\u201D.</div>';
+}
+async function markHedgeDone(idA,idB){
+  if(!confirm('Is trade ko Done mark karein? (Suggestion list se hat jayegi)'))return;
+  const now=new Date().toISOString();
+  const e1=await sb.from('hedge_accounts').update({status:'traded',updated_at:now}).eq('id',idA);
+  const e2=await sb.from('hedge_accounts').update({status:'traded',updated_at:now}).eq('id',idB);
+  if(e1.error||e2.error){alert((e1.error||e2.error).message);return;}
+  logAct('Hedge trade done',idA+' / '+idB);
+  pageHedge();
 }
 function hedgeModal(x){
   x=x||{}; const ed=!!x.id;
