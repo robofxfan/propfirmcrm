@@ -194,6 +194,7 @@ const BUY_PROFILES=['Majid','Ali','Hassan','Talib','Kaleem','Prince','SP','usman
 const BUY_FIRMS=['Topstep','Tradeify','Lucid','FundedNext','FundedSeat'];
 const BUY_RATE_PER_ACC=250; const BUY_ACCS_PER_FIRM=5;
 let buyData=[]; let buyPurch=[];
+let hedgeData=[];
 function pickField(id,label,opts,cur){
   cur=cur||''; const inList=opts.includes(cur);
   return `<label>${esc(label)}</label>
@@ -293,6 +294,7 @@ const NAV = [
   {k:'pkrexp',   label:'PKR Expenses',ic:'🧾',roles:['admin','pkr']},
   {k:'riyalexp', label:'Riyal Expenses',ic:'💵',roles:['admin','riyal']},
   {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures']},
+  {k:'hedge',    label:'Hedging',    ic:'🔗',roles:['admin','hedge']},
   {k:'reports',  label:'Performance',ic:'📈',roles:['admin']},
   {k:'users',    label:'Users',    ic:'👥',roles:['admin']},
   {k:'activity', label:'Activity', ic:'🕑',roles:['admin']},
@@ -310,7 +312,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,hedge:pageHedge}[k])();
 }
 
 async function boot(){
@@ -637,7 +639,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -1252,6 +1254,92 @@ async function savePurchase(id){
   if(accId && !id){ await sb.from('buy_accounts').update({status:'bought',bought_date:new Date().toISOString().slice(0,10),updated_at:new Date().toISOString()}).eq('id',accId); }
   logAct(id?'Edit purchase':'Record purchase',rec.profile_name+' '+rec.firm+' '+money(rec.total));
   closeModal(); pageBuy();
+}
+
+/* ============================================================
+   HEDGING SYSTEM  (user: letstrade) — suggests hedge pairs by equity
+============================================================ */
+function hedgeSuggestions(list,tol){
+  const pairs=[];
+  for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){
+    const a=list[i], b=list[j];
+    const diff=Math.abs(Number(a.equity||0)-Number(b.equity||0));
+    if(diff<=tol) pairs.push({a,b,diff});
+  }
+  pairs.sort((x,y)=>x.diff-y.diff);
+  return pairs;
+}
+async function pageHedge(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">\u{1F517} Hedging System</div>
+    <div class="page-sub">Same / milti-julti equity waale accounts jinhe hedge (pair) kiya ja sakta hai — auto suggestions. Ye section baaqi CRM se bilkul alag hai.</div>
+    <div class="cards" id="hedgeCards"></div>
+    <div class="toolbar">
+      <input class="grow" id="hedgeSearch" placeholder="Search profile or firm..." oninput="renderHedge()">
+      <div style="display:flex;align-items:center;gap:6px"><label style="margin:0;white-space:nowrap">Max equity diff ($)</label>
+        <input id="hedgeTol" type="number" step="100" value="1000" style="width:110px" oninput="renderHedge()"></div>
+      <button class="btn" onclick="hedgeModal()">+ Add Account</button>
+    </div>
+    <div class="panel"><h3>\u{1F517} Suggested Hedge Pairs</h3><div id="hedgeSugTable"></div></div>
+    <div class="panel"><h3>All Accounts</h3><div id="hedgeTable"></div></div>`;
+  const {data}=await sb.from('hedge_accounts').select('*').order('account_size').order('equity');
+  hedgeData=data||[];
+  renderHedge();
+}
+function renderHedge(){
+  const isAdmin=ME.role==='admin';
+  const q=($('hedgeSearch').value||'').toLowerCase();
+  const tol=Number(($('hedgeTol')||{}).value||1000);
+  const rows=hedgeData.filter(x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.account_size||'')).toLowerCase().includes(q));
+  const sug=hedgeSuggestions(hedgeData,tol);
+  $('hedgeCards').innerHTML=card('Total accounts',String(hedgeData.length),'gd')+card('Suggested pairs',String(sug.length),'g');
+  $('hedgeSugTable').innerHTML = sug.length?`<table><thead><tr>
+    <th>Account A</th><th>Equity A</th><th></th><th>Account B</th><th>Equity B</th><th>Diff</th></tr></thead><tbody>
+    ${sug.map(p=>`<tr>
+      <td style="font-weight:600">${esc(p.a.profile_name||'')} <span style="color:var(--muted)">(${esc(p.a.firm||'')} ${esc(p.a.account_size||'')})</span></td>
+      <td style="color:var(--green2)">${money(p.a.equity)}</td>
+      <td style="text-align:center;color:var(--gold2)">⇄</td>
+      <td style="font-weight:600">${esc(p.b.profile_name||'')} <span style="color:var(--muted)">(${esc(p.b.firm||'')} ${esc(p.b.account_size||'')})</span></td>
+      <td style="color:var(--green2)">${money(p.b.equity)}</td>
+      <td style="font-weight:700;color:${p.diff===0?'var(--green2)':'var(--gold2)'}">${money(p.diff)}</td>
+    </tr>`).join('')}
+    </tbody></table>`:'<div class="empty">Koi hedge pair nahi mila (diff ≤ '+money(tol)+'). Zyada accounts add karein ya diff barhaayein.</div>';
+  $('hedgeTable').innerHTML = rows.length?`<table><thead><tr>
+    <th>Profile</th><th>Firm</th><th>Account</th><th>Equity</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td style="font-weight:600">${esc(x.profile_name||'')}</td><td>${esc(x.firm||'')}</td><td>${esc(x.account_size||'')}</td>
+      <td style="color:var(--green2);font-weight:600">${money(x.equity)}</td><td>${esc(x.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='hedgeModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('hedge_accounts','${x.id}',pageHedge)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">Koi account nahi. Click “+ Add Account”.</div>';
+}
+function hedgeModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Hedge Account</h3>
+    <div class="field">${pickField('h_prof','Profile name *',BUY_PROFILES,x.profile_name)}</div>
+    <div class="field">${pickField('h_firm','Prop firm *',BUY_FIRMS,x.firm)}</div>
+    <div class="row"><div class="field" style="flex:1">${pickField('h_size','Account size',EQ_SIZES,x.account_size)}</div>
+      <div class="field" style="flex:1"><label>Current equity / balance ($) *</label>
+      <input id="h_eq" type="number" step="0.01" value="${x.equity!=null?x.equity:''}"></div></div>
+    <div class="field"><label>Notes</label><textarea id="h_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="h_saveBtn" onclick="saveHedge('${x.id||''}')">Save</button></div>`);
+}
+async function saveHedge(id){
+  const rec={profile_name:pickVal('h_prof'),firm:pickVal('h_firm'),account_size:pickVal('h_size'),
+    equity:Number($('h_eq').value||0),notes:$('h_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.profile_name){alert('Profile is required');return;}
+  if(!rec.firm){alert('Firm is required');return;}
+  const btn=$('h_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('hedge_accounts').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('hedge_accounts').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Edit hedge account':'Add hedge account',rec.profile_name+' '+rec.firm+' '+money(rec.equity));
+  closeModal(); pageHedge();
 }
 
 /* ---------- shared helpers ---------- */
