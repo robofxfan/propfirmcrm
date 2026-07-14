@@ -1340,7 +1340,7 @@ function renderHedge(){
       <td><span class="pill ${isOpen(x)?'paid':'submitted'}">${isOpen(x)?'open':'traded'}</span></td>
       <td>${esc(x.notes||'')}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn sm" onclick='hedgeToBuy(${JSON.stringify(x)})'>Buy</button>
+        <button class="btn sm" onclick='hedgeToBuy(${JSON.stringify(x)})'>Breached</button>
         <button class="btn ghost sm" onclick='hedgeModal(${JSON.stringify(x)})'>Edit</button>
         ${isAdmin?`<button class="btn danger sm" onclick="delRow('hedge_accounts','${x.id}',hedgeRefresh)">Del</button>`:''}
       </td></tr>`).join('')}
@@ -1356,7 +1356,7 @@ async function markHedgeDone(idA,idB){
   hedgeRefresh();
 }
 async function hedgeToBuy(x){
-  if(!confirm('Is account ko Ready-to-Buy me bhejein?\n'+(x.profile_name||'')+' - '+(x.firm||'')+'\n(Yahan se auto hide ho jayega, buy hone par wapas aa jayega)'))return;
+  if(!confirm('Is account ko BREACHED mark kar ke Ready-to-Buy me bhejein?\n'+(x.profile_name||'')+' - '+(x.firm||'')+'\n(Hedging se auto hide ho jayega, buy hone par wapas aa jayega)'))return;
   const rec={profile_name:x.profile_name,firm:x.firm,account_size:x.account_size||'150K',
     added_date:new Date().toISOString().slice(0,10),notes:x.notes||'',status:'ready',
     created_by:ME.id,updated_at:new Date().toISOString()};
