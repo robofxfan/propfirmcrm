@@ -293,7 +293,7 @@ const NAV = [
   {k:'equity',   label:'Equity',   ic:'💹',roles:['admin','equity']},
   {k:'pkrexp',   label:'PKR Expenses',ic:'🧾',roles:['admin','pkr']},
   {k:'riyalexp', label:'Riyal Expenses',ic:'💵',roles:['admin','riyal']},
-  {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures']},
+  {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures','hedge']},
   {k:'hedge',    label:'Hedging',    ic:'🔗',roles:['admin','hedge']},
   {k:'simhedge', label:'Sim Funded', ic:'🧪',roles:['admin','hedge']},
   {k:'livehedge',label:'Live Funded',ic:'💵',roles:['admin','hedge']},
@@ -1340,6 +1340,7 @@ function renderHedge(){
       <td><span class="pill ${isOpen(x)?'paid':'submitted'}">${isOpen(x)?'open':'traded'}</span></td>
       <td>${esc(x.notes||'')}</td>
       <td style="text-align:right;white-space:nowrap">
+        <button class="btn sm" onclick='hedgeToBuy(${JSON.stringify(x)})'>Buy</button>
         <button class="btn ghost sm" onclick='hedgeModal(${JSON.stringify(x)})'>Edit</button>
         ${isAdmin?`<button class="btn danger sm" onclick="delRow('hedge_accounts','${x.id}',hedgeRefresh)">Del</button>`:''}
       </td></tr>`).join('')}
@@ -1352,6 +1353,16 @@ async function markHedgeDone(idA,idB){
   const e2=await sb.from('hedge_accounts').update({status:'traded',updated_at:now}).eq('id',idB);
   if(e1.error||e2.error){alert((e1.error||e2.error).message);return;}
   logAct('Hedge trade done',idA+' / '+idB);
+  hedgeRefresh();
+}
+async function hedgeToBuy(x){
+  if(!confirm('Is account ko Ready-to-Buy me bhejein?\n'+(x.profile_name||'')+' - '+(x.firm||'')+'\n(Yahan se auto hide ho jayega, buy hone par wapas aa jayega)'))return;
+  const rec={profile_name:x.profile_name,firm:x.firm,account_size:x.account_size||'150K',
+    added_date:new Date().toISOString().slice(0,10),notes:x.notes||'',status:'ready',
+    created_by:ME.id,updated_at:new Date().toISOString()};
+  const {error}=await sb.from('buy_accounts').insert(rec);
+  if(error){alert(error.message);return;}
+  logAct('Hedge -> Ready to Buy',rec.profile_name+' '+rec.firm);
   hedgeRefresh();
 }
 function hedgeModal(x){
@@ -1410,4 +1421,3 @@ if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catc
 </script>
 </body>
 </html>
-l>
