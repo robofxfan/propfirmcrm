@@ -1341,8 +1341,8 @@ function renderHedge(){
       <td>${esc(x.notes||'')}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn sm" onclick='hedgeToBuy(${JSON.stringify(x)})'>Breached</button>
+        <button class="btn danger sm" onclick="hedgeDelete('${x.id}')">Delete</button>
         <button class="btn ghost sm" onclick='hedgeModal(${JSON.stringify(x)})'>Edit</button>
-        ${isAdmin?`<button class="btn danger sm" onclick="delRow('hedge_accounts','${x.id}',hedgeRefresh)">Del</button>`:''}
       </td></tr>`).join('')}
     </tbody></table>`:'<div class="empty">Koi account nahi (ya sab Ready-to-Buy me breached hain). Click \u201C+ Add Account\u201D.</div>';
 }
@@ -1363,6 +1363,13 @@ async function hedgeToBuy(x){
   const {error}=await sb.from('buy_accounts').insert(rec);
   if(error){alert(error.message);return;}
   logAct('Hedge -> Ready to Buy',rec.profile_name+' '+rec.firm);
+  hedgeRefresh();
+}
+async function hedgeDelete(id){
+  if(!confirm('Account PASS ho gaya? Delete karein?\n(Kisi bhi section me nahi rahega — permanently hat jayega)'))return;
+  const {error}=await sb.from('hedge_accounts').delete().eq('id',id);
+  if(error){alert(error.message);return;}
+  logAct('Hedge account deleted (passed)',id);
   hedgeRefresh();
 }
 function hedgeModal(x){
