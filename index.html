@@ -297,6 +297,8 @@ const NAV = [
   {k:'hedge',    label:'Hedging',    ic:'🔗',roles:['admin','hedge']},
   {k:'simhedge', label:'Sim Funded', ic:'🧪',roles:['admin','hedge']},
   {k:'livehedge',label:'Live Funded',ic:'💵',roles:['admin','hedge']},
+  {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
+  {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
   {k:'reports',  label:'Performance',ic:'📈',roles:['admin']},
   {k:'users',    label:'Users',    ic:'👥',roles:['admin']},
   {k:'activity', label:'Activity', ic:'🕑',roles:['admin']},
@@ -314,7 +316,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,hedge:pageHedge,simhedge:pageSimHedge,livehedge:pageLiveHedge}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,hedge:pageHedge,simhedge:pageSimHedge,livehedge:pageLiveHedge,psxstocks:pagePsxStocks,usastocks:pageUsaStocks}[k])();
 }
 
 async function boot(){
@@ -641,7 +643,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -1410,6 +1412,85 @@ async function saveHedge(id){
   if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
   logAct(id?'Edit hedge account':'Add hedge account',rec.profile_name+' '+rec.firm+' '+money(rec.equity));
   closeModal(); hedgeRefresh();
+}
+
+/* ============================================================
+   STOCKS  (user: Stocks) — PSX & USA stock entries, person-wise
+   Stocks user: sirf entries (name/person/broker/date/shares). Prices & totals admin-only.
+============================================================ */
+const STOCK_PERSONS=['Mukhtar Ali','Majid Ali','Talha Mukhtar','Sajid Hussain','Khalid Hussain','Iram Majid'];
+const STOCK_BROKERS=['Almeer Securities'];
+const STOCK_CFG={psx:{emoji:'📊',label:'PSX Stocks',cur:p=>pkr(p)},usa:{emoji:'💹',label:'USA Stocks',cur:p=>money(p)}};
+let stockMarket='psx'; let stockData=[];
+async function pagePsxStocks(){return stocksPage('psx');}
+async function pageUsaStocks(){return stocksPage('usa');}
+async function stocksPage(mkt){
+  stockMarket=mkt; const cfg=STOCK_CFG[mkt];
+  $('view').innerHTML=`<div class="page-title">${cfg.emoji} ${cfg.label}</div>
+    <div class="page-sub">Stock entries — person-wise. Ye section baaqi CRM se alag hai.</div>
+    <div class="cards" id="stCards"></div>
+    <div class="toolbar">
+      <select id="stPerson" onchange="renderStocks()" style="max-width:200px"><option value="">All persons</option>${STOCK_PERSONS.map(p=>`<option>${p}</option>`).join('')}</select>
+      <input class="grow" id="stSearch" placeholder="Search stock, broker, person..." oninput="renderStocks()">
+      <button class="btn" onclick="stockModal()">+ Add Stock</button>
+    </div>
+    <div class="panel"><h3>${cfg.emoji} Entries</h3><div id="stTable"></div></div>`;
+  const {data}=await sb.from('stock_entries').select('*').eq('market',mkt).order('buy_date',{ascending:false});
+  stockData=data||[];
+  renderStocks();
+}
+function renderStocks(){
+  const isAdmin=ME.role==='admin'; const cfg=STOCK_CFG[stockMarket];
+  const pf=($('stPerson')||{}).value||''; const q=(($('stSearch')||{}).value||'').toLowerCase();
+  const rows=stockData.filter(x=>(!pf||x.person===pf)&&((x.stock_name||'')+' '+(x.broker||'')+' '+(x.person||'')).toLowerCase().includes(q));
+  const total=rows.reduce((s,x)=>s+(Number(x.shares)||0)*(Number(x.price)||0),0);
+  $('stCards').innerHTML=card('Entries'+(pf?' — '+pf:''),String(rows.length),'gd')
+    +(isAdmin?card('Total invested'+(pf?' — '+pf:''),cfg.cur(total),'g'):'');
+  $('stTable').innerHTML=rows.length?`<table><thead><tr>
+    <th>Date</th><th>Stock</th><th>Person</th><th>Broker</th><th>No of Shares</th>${isAdmin?'<th>Price</th><th>Amount</th>':''}<th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${esc(x.buy_date||'')}</td><td style="font-weight:600">${esc(x.stock_name||'')}</td>
+      <td>${esc(x.person||'')}</td><td>${esc(x.broker||'')}</td>
+      <td style="font-weight:600">${Number(x.shares||0)}</td>
+      ${isAdmin?`<td>${cfg.cur(Number(x.price||0))}</td><td style="color:var(--gold2);font-weight:700">${cfg.cur((Number(x.shares)||0)*(Number(x.price)||0))}</td>`:''}
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='stockModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('stock_entries','${x.id}',stockRefresh)">Del</button>`:''}
+      </td></tr>`).join('')}
+    ${isAdmin?`<tr><td colspan="6" style="text-align:right;font-weight:700">Total Invested${pf?' — '+esc(pf):''}</td>
+      <td style="color:var(--gold2);font-weight:800">${cfg.cur(total)}</td><td></td></tr>`:''}
+    </tbody></table>`:'<div class="empty">Koi entry nahi. Click “+ Add Stock”.</div>';
+}
+function stockRefresh(){ stocksPage(stockMarket); }
+function stockModal(x){
+  x=x||{}; const ed=!!x.id; const cfg=STOCK_CFG[stockMarket];
+  openModal(`<h3>${ed?'Edit':'Add'} ${cfg.label} Entry</h3>
+    <div class="field"><label>Stock name *</label><input id="s_name" value="${esc(x.stock_name||'')}"></div>
+    <div class="field"><label>Person (kis ke naam par) *</label>
+      <select id="s_person">${STOCK_PERSONS.map(p=>`<option ${x.person===p?'selected':''}>${p}</option>`).join('')}</select></div>
+    <div class="field">${pickField('s_broker','Broker',STOCK_BROKERS,x.broker||'Almeer Securities')}</div>
+    <div class="row"><div class="field" style="flex:1"><label>No of shares *</label>
+      <input id="s_shares" type="number" step="1" value="${x.shares!=null?x.shares:''}"></div>
+      <div class="field" style="flex:1"><label>Price per share *</label>
+      <input id="s_price" type="number" step="0.01" value="${x.price!=null?x.price:''}"></div></div>
+    <div class="field"><label>Date *</label><input id="s_date" type="date" value="${x.buy_date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="s_saveBtn" onclick="saveStock('${x.id||''}')">Save</button></div>`);
+}
+async function saveStock(id){
+  const rec={market:stockMarket,stock_name:$('s_name').value.trim(),person:$('s_person').value,
+    broker:pickVal('s_broker'),shares:Number($('s_shares').value||0),price:Number($('s_price').value||0),
+    buy_date:$('s_date').value||new Date().toISOString().slice(0,10),updated_at:new Date().toISOString()};
+  if(!rec.stock_name){alert('Stock name required');return;}
+  if(!rec.shares){alert('No of shares required');return;}
+  const btn=$('s_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('stock_entries').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('stock_entries').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Edit stock entry':'Add stock entry',rec.stock_name+' — '+rec.person);
+  closeModal(); stocksPage(stockMarket);
 }
 
 /* ---------- shared helpers ---------- */
