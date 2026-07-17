@@ -1449,7 +1449,8 @@ function renderStocks(){
   $('stTable').innerHTML=rows.length?`<table><thead><tr>
     <th>Date</th><th>Stock</th><th>Person</th><th>Broker</th>${isAdmin?'<th>No of Shares</th><th>Price</th><th>Amount</th>':''}<th></th></tr></thead><tbody>
     ${rows.map(x=>`<tr>
-      <td>${esc(x.buy_date||'')}</td><td style="font-weight:600">${esc(x.stock_name||'')}</td>
+      <td>${esc(x.buy_date||'')}</td>
+      <td style="font-weight:600">${isAdmin?`<a onclick="stockHistory(decodeURIComponent('${encodeURIComponent(x.stock_name||'')}'))" style="cursor:pointer;color:var(--green2);text-decoration:underline">${esc(x.stock_name||'')}</a>`:esc(x.stock_name||'')}</td>
       <td>${esc(x.person||'')}</td><td>${esc(x.broker||'')}</td>
       ${isAdmin?`<td style="font-weight:600">${Number(x.shares||0)}</td><td>${cfg.cur(Number(x.price||0))}</td><td style="color:var(--gold2);font-weight:700">${cfg.cur((Number(x.shares)||0)*(Number(x.price)||0))}</td>`:''}
       <td style="text-align:right;white-space:nowrap">
@@ -1461,6 +1462,23 @@ function renderStocks(){
     </tbody></table>`:'<div class="empty">Koi entry nahi. Click “+ Add Stock”.</div>';
 }
 function stockRefresh(){ stocksPage(stockMarket); }
+function stockHistory(name){
+  const cfg=STOCK_CFG[stockMarket];
+  const rows=stockData.filter(x=>(x.stock_name||'').trim().toLowerCase()===(name||'').trim().toLowerCase());
+  const totSh=rows.reduce((s,x)=>s+(Number(x.shares)||0),0);
+  const totAmt=rows.reduce((s,x)=>s+(Number(x.shares)||0)*(Number(x.price)||0),0);
+  openModal(`<h3>\u{1F4DC} ${esc(name)} — Full History (${rows.length} buys)</h3>
+    <div style="max-height:60vh;overflow:auto"><table><thead><tr>
+      <th>Date</th><th>Shares</th><th>Person</th><th>Broker</th><th>Price</th><th>Amount</th></tr></thead><tbody>
+      ${rows.map(x=>`<tr><td>${esc(x.buy_date||'')}</td><td style="font-weight:600">${Number(x.shares||0)}</td>
+        <td>${esc(x.person||'')}</td><td>${esc(x.broker||'')}</td>
+        <td>${cfg.cur(Number(x.price||0))}</td>
+        <td style="color:var(--gold2);font-weight:700">${cfg.cur((Number(x.shares)||0)*(Number(x.price)||0))}</td></tr>`).join('')}
+      <tr><td style="font-weight:800">Total</td><td style="font-weight:800">${totSh}</td><td></td><td></td><td></td>
+        <td style="color:var(--gold2);font-weight:800">${cfg.cur(totAmt)}</td></tr>
+    </tbody></table></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="closeModal()">Close</button></div>`);
+}
 function stockModal(x){
   x=x||{}; const ed=!!x.id; const cfg=STOCK_CFG[stockMarket]; const showVals=(!ed)||ME.role==='admin';
   openModal(`<h3>${ed?'Edit':'Add'} ${cfg.label} Entry</h3>
@@ -1490,7 +1508,6 @@ async function saveStock(id){
   let err;
   if(id){({error:err}=await sb.from('stock_entries').update(rec).eq('id',id));}
   else{rec.created_by=ME.id;({error:err}=await sb.from('stock_entries').insert(rec));}
-  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
   logAct(id?'Edit stock entry':'Add stock entry',rec.stock_name+' — '+rec.person);
   closeModal(); stocksPage(stockMarket);
 }
