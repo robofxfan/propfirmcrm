@@ -1319,8 +1319,8 @@ function renderHedge(){
   const openAccts=avail.filter(isOpen);                        // traded nahi (ya buy hone ke baad reset)
   const rows=avail.filter(x=>((x.profile_name||'')+' '+(x.firm||'')+' '+(x.account_size||'')).toLowerCase().includes(q));
   const sug=hedgeSuggestions(openAccts,tol);
-  const isLive=(type==='live');
-  const totalEq=avail.reduce((s,x)=>s+Number(x.equity||0)*Number(x.num_accounts||1),0);
+  const isLive=(type==='live'||type==='sim');
+  const totalEq=avail.reduce((s,x)=>s+(Number(x.equity)||0)*(Number(x.num_accounts)||1),0);
   $('hedgeCards').innerHTML=card('Available accounts',String(avail.length),'gd')+card('Suggested pairs',String(sug.length),'g')
     +(isLive?card('Total available equity',money(totalEq),'g'):'');
   $('hedgeSugTable').innerHTML = sug.length?`<table><thead><tr>
@@ -1350,6 +1350,8 @@ function renderHedge(){
         <button class="btn danger sm" onclick="hedgeDelete('${x.id}')">Delete</button>
         <button class="btn ghost sm" onclick='hedgeModal(${JSON.stringify(x)})'>Edit</button>
       </td></tr>`).join('')}
+    ${isLive?`<tr><td colspan="6" style="text-align:right;font-weight:700">Full Balance (Available Equity)</td>
+      <td style="color:var(--gold2);font-weight:800">${money(totalEq)}</td><td colspan="3"></td></tr>`:''}
     </tbody></table>`:'<div class="empty">Koi account nahi (ya sab Ready-to-Buy me breached hain). Click \u201C+ Add Account\u201D.</div>';
 }
 async function markHedgeDone(idA,idB){
@@ -1386,7 +1388,7 @@ function hedgeModal(x){
     <div class="row"><div class="field" style="flex:1">${pickField('h_size','Account size',EQ_SIZES,x.account_size||'150K')}</div>
       <div class="field" style="flex:1"><label>Current equity / balance ($) *</label>
       <input id="h_eq" type="number" step="0.01" value="${x.equity!=null?x.equity:''}"></div></div>
-    ${hedgeType==='live'?`<div class="row"><div class="field" style="flex:1"><label>Profitable days</label>
+    ${(hedgeType==='live'||hedgeType==='sim')?`<div class="row"><div class="field" style="flex:1"><label>Profitable days</label>
       <select id="h_pd">${[1,2,3,4,5].map(n=>`<option ${Number(x.profitable_days||1)===n?'selected':''}>${n}</option>`).join('')}</select></div>
       <div class="field" style="flex:1"><label>No of accounts</label>
       <select id="h_num">${[1,2,3,4,5].map(n=>`<option ${Number(x.num_accounts||1)===n?'selected':''}>${n}</option>`).join('')}</select></div></div>`:''}
@@ -1398,7 +1400,7 @@ function hedgeModal(x){
 async function saveHedge(id){
   const rec={profile_name:pickVal('h_prof'),firm:pickVal('h_firm'),account_size:pickVal('h_size'),
     equity:Number($('h_eq').value||0),notes:$('h_notes').value.trim(),acct_type:hedgeType,updated_at:new Date().toISOString()};
-  if(hedgeType==='live'){rec.profitable_days=Number(($('h_pd')||{}).value||1); rec.num_accounts=Number(($('h_num')||{}).value||1);}
+  if(hedgeType==='live'||hedgeType==='sim'){rec.profitable_days=Number(($('h_pd')||{}).value||1); rec.num_accounts=Number(($('h_num')||{}).value||1);}
   if(!rec.profile_name){alert('Profile is required');return;}
   if(!rec.firm){alert('Firm is required');return;}
   const btn=$('h_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
