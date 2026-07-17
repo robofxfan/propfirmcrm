@@ -1435,7 +1435,7 @@ async function stocksPage(mkt){
       <button class="btn" onclick="stockModal()">+ Add Stock</button>
     </div>
     <div class="panel"><h3>${cfg.emoji} Entries</h3><div id="stTable"></div></div>`;
-  const {data}=await sb.from('stock_entries').select('*').eq('market',mkt).order('buy_date',{ascending:false});
+  const {data}=await sb.from('stock_entries').select('*').eq('market',mkt).order('buy_date',{ascending:false}).order('created_at',{ascending:false});
   stockData=data||[];
   renderStocks();
 }
@@ -1447,12 +1447,11 @@ function renderStocks(){
   $('stCards').innerHTML=card('Entries'+(pf?' — '+pf:''),String(rows.length),'gd')
     +(isAdmin?card('Total invested'+(pf?' — '+pf:''),cfg.cur(total),'g'):'');
   $('stTable').innerHTML=rows.length?`<table><thead><tr>
-    <th>Date</th><th>Stock</th><th>Person</th><th>Broker</th><th>No of Shares</th>${isAdmin?'<th>Price</th><th>Amount</th>':''}<th></th></tr></thead><tbody>
+    <th>Date</th><th>Stock</th><th>Person</th><th>Broker</th>${isAdmin?'<th>No of Shares</th><th>Price</th><th>Amount</th>':''}<th></th></tr></thead><tbody>
     ${rows.map(x=>`<tr>
       <td>${esc(x.buy_date||'')}</td><td style="font-weight:600">${esc(x.stock_name||'')}</td>
       <td>${esc(x.person||'')}</td><td>${esc(x.broker||'')}</td>
-      <td style="font-weight:600">${Number(x.shares||0)}</td>
-      ${isAdmin?`<td>${cfg.cur(Number(x.price||0))}</td><td style="color:var(--gold2);font-weight:700">${cfg.cur((Number(x.shares)||0)*(Number(x.price)||0))}</td>`:''}
+      ${isAdmin?`<td style="font-weight:600">${Number(x.shares||0)}</td><td>${cfg.cur(Number(x.price||0))}</td><td style="color:var(--gold2);font-weight:700">${cfg.cur((Number(x.shares)||0)*(Number(x.price)||0))}</td>`:''}
       <td style="text-align:right;white-space:nowrap">
         <button class="btn ghost sm" onclick='stockModal(${JSON.stringify(x)})'>Edit</button>
         ${isAdmin?`<button class="btn danger sm" onclick="delRow('stock_entries','${x.id}',stockRefresh)">Del</button>`:''}
@@ -1463,16 +1462,16 @@ function renderStocks(){
 }
 function stockRefresh(){ stocksPage(stockMarket); }
 function stockModal(x){
-  x=x||{}; const ed=!!x.id; const cfg=STOCK_CFG[stockMarket];
+  x=x||{}; const ed=!!x.id; const cfg=STOCK_CFG[stockMarket]; const showVals=(!ed)||ME.role==='admin';
   openModal(`<h3>${ed?'Edit':'Add'} ${cfg.label} Entry</h3>
     <div class="field"><label>Stock name *</label><input id="s_name" value="${esc(x.stock_name||'')}"></div>
     <div class="field"><label>Person (kis ke naam par) *</label>
       <select id="s_person">${STOCK_PERSONS.map(p=>`<option ${x.person===p?'selected':''}>${p}</option>`).join('')}</select></div>
     <div class="field">${pickField('s_broker','Broker',STOCK_BROKERS,x.broker||'Almeer Securities')}</div>
-    <div class="row"><div class="field" style="flex:1"><label>No of shares *</label>
-      <input id="s_shares" type="number" step="1" value="${x.shares!=null?x.shares:''}"></div>
-      <div class="field" style="flex:1"><label>Price per share *</label>
-      <input id="s_price" type="number" step="0.01" value="${x.price!=null?x.price:''}"></div></div>
+    <div class="row"><div class="field" style="flex:1"><label>No of shares ${showVals?'*':'(khali = same rahega)'}</label>
+      <input id="s_shares" type="number" step="1" value="${showVals&&x.shares!=null?x.shares:''}"></div>
+      <div class="field" style="flex:1"><label>Price per share ${showVals?'*':'(khali = same rahega)'}</label>
+      <input id="s_price" type="number" step="0.01" value="${showVals&&x.price!=null?x.price:''}"></div></div>
     <div class="field"><label>Date *</label><input id="s_date" type="date" value="${x.buy_date||new Date().toISOString().slice(0,10)}"></div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -1480,10 +1479,13 @@ function stockModal(x){
 }
 async function saveStock(id){
   const rec={market:stockMarket,stock_name:$('s_name').value.trim(),person:$('s_person').value,
-    broker:pickVal('s_broker'),shares:Number($('s_shares').value||0),price:Number($('s_price').value||0),
+    broker:pickVal('s_broker'),
     buy_date:$('s_date').value||new Date().toISOString().slice(0,10),updated_at:new Date().toISOString()};
+  const shRaw=$('s_shares').value, prRaw=$('s_price').value;
+  if(shRaw!=='') rec.shares=Number(shRaw);      // edit me khali chhora to purana value same rahega
+  if(prRaw!=='') rec.price=Number(prRaw);
   if(!rec.stock_name){alert('Stock name required');return;}
-  if(!rec.shares){alert('No of shares required');return;}
+  if(!id && !rec.shares){alert('No of shares required');return;}
   const btn=$('s_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
   let err;
   if(id){({error:err}=await sb.from('stock_entries').update(rec).eq('id',id));}
