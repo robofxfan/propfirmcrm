@@ -74,6 +74,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
 .badge.expense{background:#0f2a1a;color:var(--green2)}
 .badge.payout{background:#0a2030;color:#7dd3fc}
 .badge.pending{background:#2a2a2a;color:#bbb}
+.badge.almeer{background:#0a2530;color:#67e8f9}
 .main{margin-left:230px;flex:1;padding:26px 30px;width:calc(100% - 230px)}
 .page-title{font-size:22px;font-weight:800;margin-bottom:2px}
 .page-sub{color:var(--muted);margin-bottom:22px;font-size:13px}
@@ -224,6 +225,7 @@ async function backup(){
     ['pkr_expenses','pkr-expenses',['entry_date','category','amount','notes']],
     ['riyal_funds','riyal-funds',['fund_date','amount','notes']],
     ['riyal_expenses','riyal-expenses',['entry_date','category','amount','notes']],
+    ['almeer_entries','almeer-psx',['entry_date','kind','category','amount','notes']],
     ['profiles','users',['email','role','active','created_at']]
   ];
   let n=0;
@@ -299,6 +301,7 @@ const NAV = [
   {k:'livehedge',label:'Live Funded',ic:'💵',roles:['admin','hedge']},
   {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
   {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
+  {k:'almeerpsx',label:'Almeer PSX', ic:'💼',roles:['admin','almeer']},
   {k:'reports',  label:'Performance',ic:'📈',roles:['admin']},
   {k:'users',    label:'Users',    ic:'👥',roles:['admin']},
   {k:'activity', label:'Activity', ic:'🕑',roles:['admin']},
@@ -316,7 +319,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,hedge:pageHedge,simhedge:pageSimHedge,livehedge:pageLiveHedge,psxstocks:pagePsxStocks,usastocks:pageUsaStocks}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,hedge:pageHedge,simhedge:pageSimHedge,livehedge:pageLiveHedge,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer}[k])();
 }
 
 async function boot(){
@@ -632,6 +635,7 @@ function renderReport(){
 async function pageUsers(){
   $('view').innerHTML=`<div class="page-title">Users</div>
     <div class="page-sub">Assign each user's role and enable/disable access.</div>
+    <div class="toolbar"><span class="grow"></span><button class="btn" onclick="newUserModal()">➕ Add User</button></div>
     <div class="panel" style="padding:0"><div id="usrTable"></div></div>`;
   const {data}=await sb.from('profiles').select('*').order('created_at');
   const rows=data||[];
@@ -643,7 +647,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -674,6 +678,52 @@ async function resetPw(id,uname,role){
   if(error){alert('Could not change password: '+error.message);return;}
   logAct('Reset password',uname);
   alert('Password updated for "'+uname+'". They can now log in with the new password.');
+}
+
+/* ---- Admin: create new user (credentials shown ONE time) ---- */
+function newUserModal(){
+  openModal(`<h3>➕ Add User</h3>
+    <div class="field"><label>Username *</label>
+      <input id="nu_name" placeholder="e.g. ALMEERPSX" oninput="if(!$('nu_pw').dataset.touched)$('nu_pw').value=this.value"></div>
+    <div class="field"><label>Password * (min 6 chars — default: same as username)</label>
+      <input id="nu_pw" oninput="this.dataset.touched='1'"></div>
+    <div class="field"><label>Role *</label><select id="nu_role">
+      ${['almeer','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">⚠️ Username/password create hote hi sirf EK BAAR dikhaya jayega — note kar lein.</div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="nu_saveBtn" onclick="saveNewUser()">Create User</button></div>`);
+}
+async function saveNewUser(){
+  const uname=$('nu_name').value.trim(), pw=$('nu_pw').value, role=$('nu_role').value;
+  if(!uname){alert('Username required');return;}
+  if(pw.length<6){alert('Password must be at least 6 characters.');return;}
+  const btn=$('nu_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Creating...';}
+  try{
+    const tmp=supabase.createClient(SUPABASE_URL,SUPABASE_ANON,{auth:{persistSession:false,autoRefreshToken:false}});
+    const {data,error}=await tmp.auth.signUp({email:toEmail(uname),password:pw});
+    if(error) throw error;
+    const uid=data.user&&data.user.id;
+    if(uid){
+      try{ await tmp.from('profiles').upsert({id:uid,email:toEmail(uname),role:'pending',active:true}); }catch(e){}
+      const {error:e2}=await sb.from('profiles').update({role,active:true}).eq('id',uid);
+      if(e2){ try{ await sb.from('profiles').insert({id:uid,email:toEmail(uname),role,active:true}); }catch(e){} }
+    }
+    try{ await tmp.auth.signOut(); }catch(e){}
+    logAct('Create user',uname+' ('+role+')');
+    openModal(`<h3>✅ User Created — ONE TIME INFO</h3>
+      <div class="panel" style="text-align:center;margin:10px 0">
+        <div style="font-size:13px;color:var(--muted)">Username</div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:1px">${esc(uname)}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:10px">Password</div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:1px">${esc(pw)}</div>
+      </div>
+      <div style="font-size:12px;color:#fca5a5;margin-bottom:8px">⚠️ Ye password dobara nahi dikhaya jayega — abhi note kar lein. (Baad mein sirf "Reset PW" se naya password banaya ja sakta hai.)</div>
+      <div class="row" style="justify-content:flex-end"><button class="btn" onclick="closeModal();pageUsers()">Done</button></div>`);
+  }catch(e){
+    alert('Could not create user: '+e.message+'\n\n(Agar "Signups not allowed" ka error aaye to Supabase Dashboard → Authentication → Sign In / Up → "Allow new users to sign up" ON karein, aur "Confirm email" OFF rakhein.)');
+    if(btn){btn.disabled=false;btn.textContent='Create User';}
+  }
 }
 
 /* ============================================================
@@ -1510,6 +1560,118 @@ async function saveStock(id){
   else{rec.created_by=ME.id;({error:err}=await sb.from('stock_entries').insert(rec));}
   logAct(id?'Edit stock entry':'Add stock entry',rec.stock_name+' — '+rec.person);
   closeModal(); stocksPage(stockMarket);
+}
+
+/* ============================================================
+   ALMEER PSX  (user: almeer) — Expenses & Earnings, PKR
+   Red = expenses, Green = earnings. Net/final amounts = ADMIN ONLY.
+============================================================ */
+let almeerData=[];
+async function pageAlmeer(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">💼 Almeer PSX</div>
+    <div class="page-sub">Expenses & Earnings — month-wise, 3 / 6 / 9 month aur yearly summary ke saath.</div>
+    <div class="cards" id="alCards"></div>
+    <div class="panel"><h3>📆 Period Summary</h3><div id="alPeriods"></div></div>
+    <div class="panel"><h3>📅 Month</h3>
+      <div class="field" style="max-width:260px"><label>Select month</label><select id="alMonth" onchange="renderAlmeer()"></select></div>
+      <div id="alMonthOut"></div></div>
+    <div class="toolbar">
+      <input class="grow" id="alSearch" placeholder="Search category or notes..." oninput="renderAlmeer()">
+      <button class="btn" onclick="almeerModal(null,'earning')">+ Add Earning</button>
+      <button class="btn danger" onclick="almeerModal(null,'expense')">+ Add Expense</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="alTable"></div></div>`;
+  const {data}=await sb.from('almeer_entries').select('*').order('entry_date',{ascending:false});
+  almeerData=data||[];
+  const set=new Set(almeerData.map(x=>String(x.entry_date||'').slice(0,7)).filter(Boolean));
+  set.add(new Date().toISOString().slice(0,7));
+  const months=[...set].sort().reverse();
+  const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  $('alMonth').innerHTML='<option value="all">All months</option>'+months.map(v=>{const p=v.split('-');return `<option value="${v}">${MN[Number(p[1])-1]||p[1]} ${p[0]}</option>`;}).join('');
+  renderAlmeer();
+}
+function alSum(rows){
+  let earn=0,exp=0;
+  rows.forEach(x=>{ if(x.kind==='earning') earn+=Number(x.amount||0); else exp+=Number(x.amount||0); });
+  return {earn,exp,net:earn-exp};
+}
+function alCutoff(mo){ const d=new Date(); d.setMonth(d.getMonth()-mo); return d.toISOString().slice(0,10); }
+function renderAlmeer(){
+  const isAdmin=ME.role==='admin';
+  const q=($('alSearch').value||'').toLowerCase();
+  const mSel=($('alMonth')||{}).value||'all';
+  const t=alSum(almeerData);
+  $('alCards').innerHTML =
+    card('Total Earnings',pkr(t.earn),'g') +
+    card('Total Expenses',pkr(t.exp),'r') +
+    (isAdmin?card('Final Net '+(t.net>=0?'(Profit)':'(Loss)'),pkr(t.net),t.net>=0?'gd':'r'):'');
+  const periods=[['This Month (1 M)',1],['Quarter (3 M)',3],['Half Year (6 M)',6],['9 Months',9],['Yearly (12 M)',12]];
+  $('alPeriods').innerHTML=`<table><thead><tr><th>Period</th><th>Earnings</th><th>Expenses</th>${isAdmin?'<th>Net (final)</th>':''}</tr></thead><tbody>
+    ${periods.map(p=>{
+      const cut=alCutoff(p[1]);
+      const s=alSum(almeerData.filter(x=>String(x.entry_date||'')>=cut));
+      return `<tr><td>${p[0]}</td>
+        <td style="color:var(--green2);font-weight:600">${pkr(s.earn)}</td>
+        <td style="color:#fca5a5;font-weight:600">${pkr(s.exp)}</td>
+        ${isAdmin?`<td style="font-weight:700;color:${s.net>=0?'var(--green2)':'#fca5a5'}">${pkr(s.net)}</td>`:''}</tr>`;
+    }).join('')}</tbody></table>`;
+  if(mSel==='all'){
+    $('alMonthOut').innerHTML='<div style="color:var(--muted);font-size:13px">Kisi month ko select karein us month ki earnings/expenses dekhne ke liye.</div>';
+  } else {
+    const mrows=almeerData.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+    const s=alSum(mrows);
+    $('alMonthOut').innerHTML=`<div class="cards">${card('Month earnings',pkr(s.earn),'g')}${card('Month expenses',pkr(s.exp),'r')}${isAdmin?card('Month net',pkr(s.net),s.net>=0?'gd':'r'):''}</div>`;
+  }
+  let rows=almeerData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  const shown=alSum(rows);
+  $('alTable').innerHTML = rows.length?`<table><thead><tr>
+    <th>Date</th><th>Type</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>{const isE=x.kind==='earning';return `<tr>
+      <td>${x.entry_date||''}</td>
+      <td><span class="pill ${isE?'paid':'pending'}" style="${isE?'':'background:#3a0d0d;color:#fca5a5'}">${isE?'Earning':'Expense'}</span></td>
+      <td>${esc(x.category||'')}</td>
+      <td style="color:${isE?'var(--green2)':'#fca5a5'};font-weight:700">${isE?'+':'−'} ${pkr(x.amount)}</td>
+      <td>${esc(x.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='almeerModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('almeer_entries','${x.id}',pageAlmeer)">Del</button>`:''}
+      </td></tr>`;}).join('')}
+    </tbody><tfoot><tr><td colspan="3" style="font-weight:700">Total (shown)</td>
+      <td style="font-weight:700;white-space:nowrap">
+        <span style="color:var(--green2)">+ ${pkr(shown.earn)}</span> / <span style="color:#fca5a5">− ${pkr(shown.exp)}</span>${isAdmin?` = <span style="color:${shown.net>=0?'var(--green2)':'#fca5a5'}">${pkr(shown.net)}</span>`:''}
+      </td><td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No entries yet. "+ Add Earning" ya "+ Add Expense" par click karein.</div>';
+}
+function almeerModal(x,kind){
+  x=x||{}; const ed=!!x.id; const k=x.kind||kind||'expense';
+  openModal(`<h3>${ed?'Edit':'Add'} ${k==='earning'?'Earning':'Expense'} (PKR)</h3>
+    <div class="field"><label>Type *</label><select id="al_kind">
+      <option value="expense" ${k==='expense'?'selected':''}>Expense (kharcha)</option>
+      <option value="earning" ${k==='earning'?'selected':''}>Earning (amdani)</option></select></div>
+    <div class="row"><div class="field" style="flex:1"><label>Category *</label>
+      <input id="al_cat" value="${esc(x.category||'')}" placeholder="e.g. Commission, Profit, Fees"></div>
+      <div class="field" style="flex:1"><label>Amount (PKR) *</label>
+      <input id="al_amt" type="number" step="0.01" value="${x.amount!=null?x.amount:''}"></div></div>
+    <div class="field"><label>Date *</label><input id="al_date" type="date" value="${x.entry_date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="al_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="al_saveBtn" onclick="saveAlmeer('${x.id||''}')">Save</button></div>`);
+}
+async function saveAlmeer(id){
+  const rec={kind:$('al_kind').value,category:$('al_cat').value.trim(),amount:Number($('al_amt').value||0),
+    entry_date:$('al_date').value||new Date().toISOString().slice(0,10),
+    notes:$('al_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.category){alert('Category is required');return;}
+  if(!(rec.amount>0)){alert('Enter a valid amount');return;}
+  const btn=$('al_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('almeer_entries').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('almeer_entries').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update Almeer entry':'Add Almeer entry',rec.kind+' '+rec.category+' '+pkr(rec.amount));
+  closeModal(); pageAlmeer();
 }
 
 /* ---------- shared helpers ---------- */
