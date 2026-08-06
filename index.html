@@ -301,9 +301,6 @@ const NAV = [
   {k:'riyalexp', label:'Riyal Expenses',ic:'💵',roles:['admin','riyal']},
   {k:'hajiexp',  label:'Haji Expenses',ic:'🧾',roles:['admin','haji']},
   {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures','hedge']},
-  {k:'hedge',    label:'Hedging',    ic:'🔗',roles:['admin','hedge']},
-  {k:'simhedge', label:'Sim Funded', ic:'🧪',roles:['admin','hedge']},
-  {k:'livehedge',label:'Live Funded',ic:'💵',roles:['admin','hedge']},
   {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
   {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
   {k:'almeerpsx',label:'Almeer PSX', ic:'💼',roles:['admin','almeer']},
@@ -324,7 +321,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,hedge:pageHedge,simhedge:pageSimHedge,livehedge:pageLiveHedge,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji}[k])();
 }
 
 async function boot(){
@@ -656,6 +653,7 @@ async function pageUsers(){
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
+        ${isAdm?'':`<button class="btn danger sm" onclick="adminDeleteUser('${u.id}','${un}')">Delete</button>`}
       </td></tr>`;}).join('')}
     </tbody></table>`;
 }
@@ -683,6 +681,17 @@ async function resetPw(id,uname,role){
   if(error){alert('Could not change password: '+error.message);return;}
   logAct('Reset password',uname);
   alert('Password updated for "'+uname+'". They can now log in with the new password.');
+}
+
+/* ---- Admin: permanently delete a user ---- */
+async function adminDeleteUser(id,uname){
+  if(!confirm('User "'+uname+'" ko PERMANENTLY delete karna hai?\n\nYe login hamesha ke liye khatam ho jayega. (Uska purana data tables mein mehfooz rahega.)')) return;
+  if(!confirm('Pakka? Ye action wapas nahi ho sakta — "'+uname+'" delete ho jayega.')) return;
+  const {error}=await sb.rpc('admin_delete_user',{target:id});
+  if(error){alert('Could not delete user: '+error.message);return;}
+  logAct('Delete user',uname);
+  alert('User "'+uname+'" delete ho gaya.');
+  pageUsers();
 }
 
 /* ---- Admin: create new user (credentials shown ONE time) ---- */
