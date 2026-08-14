@@ -78,6 +78,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
 .badge.pending{background:#2a2a2a;color:#bbb}
 .badge.almeer{background:#0a2530;color:#67e8f9}
 .badge.haji{background:#2a1a05;color:#fbbf24}
+.badge.e69{background:#1a052a;color:#d8b4fe}
 .main{margin-left:230px;flex:1;padding:26px 30px;width:calc(100% - 230px)}
 .page-title{font-size:22px;font-weight:800;margin-bottom:2px}
 .page-sub{color:var(--muted);margin-bottom:22px;font-size:13px}
@@ -195,6 +196,7 @@ const PKR_CATS=['Grocery','Mobile Device','Laptop','Sim Pkg','Rent','Bill','Food
 let pkrExpData=[]; let pkrFundData=[];
 let riyalExpData=[]; let riyalFundData=[];
 let hajiExpData=[]; let hajiFundData=[];
+let e69ExpData=[]; let e69FundData=[];
 const BUY_PROFILES=['Majid','Ali','Hassan','Talib','Kaleem','Prince','SP','usmanuae','tanveeruae','uae'];
 const BUY_FIRMS=['Topstep','Tradeify','Lucid','FundedNext','FundedSeat'];
 const BUY_RATE_PER_ACC=250; const BUY_ACCS_PER_FIRM=5;
@@ -296,6 +298,7 @@ function pdfMonthlyExp(o){
 function pdfPkr(){pdfMonthlyExp({data:pkrExpData,funds:pkrFundData,searchId:'pkrSearch',monthId:'pkrMonth',section:'PKR Monthly Expenses (Suh)',cur:'Rs',file:'majid-ali-pkr-expenses'});}
 function pdfRiyal(){pdfMonthlyExp({data:riyalExpData,funds:riyalFundData,searchId:'riSearch',monthId:'riMonth',section:'Riyal Monthly Expenses (Ali)',cur:'SAR',file:'majid-ali-riyal-expenses'});}
 function pdfHaji(){pdfMonthlyExp({data:hajiExpData,funds:hajiFundData,searchId:'hajiSearch',monthId:'hajiMonth',section:'Haji Monthly Expenses (Haji Saqib)',cur:'Rs',file:'majid-ali-haji-expenses'});}
+function pdfE69(){pdfMonthlyExp({data:e69ExpData,funds:e69FundData,searchId:'e69Search',monthId:'e69Month',section:'E69 Monthly Expenses',cur:'Rs',file:'majid-ali-e69-expenses'});}
 function pdfAlmeer(){
   const q=(($('alSearch')||{}).value||'').toLowerCase();
   const mSel=($('alMonth')||{}).value||'all';
@@ -339,6 +342,8 @@ async function backup(){
     ['almeer_entries','almeer-psx',['entry_date','kind','category','amount','notes']],
     ['haji_funds','haji-funds',['fund_date','amount','notes']],
     ['haji_expenses','haji-expenses',['entry_date','category','amount','notes']],
+    ['e69_funds','e69-funds',['fund_date','amount','notes']],
+    ['e69_expenses','e69-expenses',['entry_date','category','amount','notes']],
     ['profiles','users',['email','role','active','created_at']]
   ];
   let n=0;
@@ -409,6 +414,7 @@ const NAV = [
   {k:'pkrexp',   label:'PKR Expenses',ic:'🧾',roles:['admin','pkr']},
   {k:'riyalexp', label:'Riyal Expenses',ic:'💵',roles:['admin','riyal']},
   {k:'hajiexp',  label:'Haji Expenses',ic:'🧾',roles:['admin','haji']},
+  {k:'e69exp',   label:'E69 Expenses',ic:'🧾',roles:['admin','e69']},
   {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures','hedge']},
   {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
   {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
@@ -430,7 +436,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69}[k])();
 }
 
 async function boot(){
@@ -760,7 +766,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -813,7 +819,7 @@ function newUserModal(){
     <div class="field"><label>Password * (min 6 chars — default: same as username)</label>
       <input id="nu_pw" oninput="this.dataset.touched='1'"></div>
     <div class="field"><label>Role *</label><select id="nu_role">
-      ${['almeer','haji','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      ${['almeer','haji','e69','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px">⚠️ Username/password create hote hi sirf EK BAAR dikhaya jayega — note kar lein.</div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -1279,6 +1285,110 @@ async function saveHajiFund(){
   if(error){alert(error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
   logAct('Add Haji fund',pkr(rec.amount));
   closeModal(); pageHaji();
+}
+
+/* ============================================================
+   E69 MONTHLY EXPENSES  (user: e69) — fully separate, PKR
+============================================================ */
+async function pageE69(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">\u{1F9FE} E69 Monthly Expenses</div>
+    <div class="page-sub">E69 ke monthly kharche (PKR) — ye section baaqi CRM se bilkul alag hai.</div>
+    <div class="cards" id="e69Cards"></div>
+    <div class="panel"><h3>\u{1F4C5} Month</h3>
+      <div class="field" style="max-width:260px"><label>Select month</label><select id="e69Month" onchange="renderE69()"></select></div>
+      <div id="e69MonthOut"></div></div>
+    <div class="toolbar">
+      <input class="grow" id="e69Search" placeholder="Search category or notes..." oninput="renderE69()">
+      ${isAdmin?`<button class="btn gold" onclick="e69FundModal()">\u{1F3E6} Add Fund (to E69)</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfE69()">⬇ PDF</button>`:''}
+      <button class="btn" onclick="e69ExpModal()">+ Add Expense</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="e69Table"></div></div>`;
+  const [{data:ex=[]},{data:fu=[]}]=await Promise.all([
+    sb.from('e69_expenses').select('*').order('entry_date',{ascending:false}),
+    sb.from('e69_funds').select('*').order('fund_date',{ascending:false})]);
+  e69ExpData=ex||[]; e69FundData=fu||[];
+  const ms=pkrMonths();
+  $('e69Month').innerHTML='<option value="all">All months</option>'+ms.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  renderE69();
+}
+function renderE69(){
+  const isAdmin=ME.role==='admin';
+  const q=($('e69Search').value||'').toLowerCase();
+  const mSel=($('e69Month')||{}).value||'all';
+  let rows=e69ExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  const received=e69FundData.reduce((s,x)=>s+Number(x.amount||0),0);
+  const spent=e69ExpData.reduce((s,x)=>s+Number(x.amount||0),0);
+  const bal=received-spent;
+  $('e69Cards').innerHTML=card('Received from admin',pkr(received),'g')+card('Expense total',pkr(spent),'r')+card('Balance left',pkr(bal),bal>=0?'gd':'r');
+  if(mSel==='all'){
+    $('e69MonthOut').innerHTML='<div style="color:var(--muted);font-size:13px">Kisi month ko select karein us month ka kharcha dekhne ke liye.</div>';
+  } else {
+    const mrows=e69ExpData.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+    const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
+    $('e69MonthOut').innerHTML=`<div class="cards">${card('This month spent',pkr(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
+  }
+  $('e69Table').innerHTML = rows.length?`<table><thead><tr>
+    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
+      <td style="color:#fca5a5;font-weight:600">${pkr(x.amount)}</td>
+      <td>${esc(x.notes||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='e69ExpModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('e69_expenses','${x.id}',pageE69)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
+      <td style="font-weight:700;color:#fca5a5">${pkr(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+}
+function e69ExpModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Expense (PKR)</h3>
+    <div class="row"><div class="field" style="flex:1">${pickField('e69_cat','Category *',PKR_CATS,x.category)}</div>
+      <div class="field" style="flex:1"><label>Amount (PKR) *</label>
+      <input id="e69_amt" type="number" step="1" value="${x.amount!=null?x.amount:''}"></div></div>
+    <div class="field"><label>Date *</label><input id="e69_date" type="date" value="${x.entry_date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>Notes</label><textarea id="e69_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="e69_saveBtn" onclick="saveE69Exp('${x.id||''}')">Save</button></div>`);
+}
+async function saveE69Exp(id){
+  const rec={category:pickVal('e69_cat'),amount:Number($('e69_amt').value||0),
+    entry_date:$('e69_date').value||new Date().toISOString().slice(0,10),
+    notes:$('e69_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.category){alert('Category is required');return;}
+  const btn=$('e69_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('e69_expenses').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('e69_expenses').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update E69 expense':'Add E69 expense',rec.category+' '+pkr(rec.amount));
+  closeModal(); pageE69();
+}
+function e69FundModal(){
+  openModal(`<h3>Add Fund to E69 (PKR)</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Amount (PKR) *</label>
+      <input id="e69f_amt" type="number" step="1"></div>
+      <div class="field" style="flex:1"><label>Date *</label>
+      <input id="e69f_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="field"><label>Notes</label><textarea id="e69f_notes" rows="2"></textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="e69f_saveBtn" onclick="saveE69Fund()">Save</button></div>`);
+}
+async function saveE69Fund(){
+  const rec={amount:Number($('e69f_amt').value||0),fund_date:$('e69f_date').value||new Date().toISOString().slice(0,10),
+    notes:$('e69f_notes').value.trim(),created_by:ME.id};
+  if(!(rec.amount>0)){alert('Enter a valid amount');return;}
+  const btn=$('e69f_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  const {error}=await sb.from('e69_funds').insert(rec);
+  if(error){alert(error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct('Add E69 fund',pkr(rec.amount));
+  closeModal(); pageE69();
 }
 
 /* ============================================================
