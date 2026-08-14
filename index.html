@@ -157,6 +157,7 @@ tr:hover td{background:var(--panel2)}
     <div class="side-foot">
       <div class="who" id="whoName">—</div>
       <div style="margin:6px 0"><span class="badge" id="whoRole">—</span></div>
+      <button class="btn ghost sm" id="refreshBtn" style="width:100%;margin-bottom:6px" onclick="hardRefresh()">🔄 Refresh</button>
       <button class="btn ghost sm" id="themeBtn" style="width:100%;margin-bottom:6px" onclick="toggleTheme()">☀️ Day mode</button>
       <button class="btn ghost sm" id="hideBtn" style="width:100%;margin-bottom:6px;display:none" onclick="toggleHideBal()">🙈 Hide balances</button>
       <button class="btn ghost sm" style="width:100%" onclick="logout()">Logout</button>
@@ -179,6 +180,14 @@ let HIDEBAL=false;
 const money = n => HIDEBAL ? '$\u2022\u2022\u2022\u2022' : '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pkr = n => HIDEBAL ? 'Rs \u2022\u2022\u2022\u2022' : 'Rs ' + (Number(n)||0).toLocaleString('en-US');
 const sar = n => HIDEBAL ? 'SAR \u2022\u2022\u2022\u2022' : 'SAR ' + (Number(n)||0).toLocaleString('en-US');
+async function hardRefresh(){
+  const b=$('refreshBtn'); if(b){b.disabled=true;b.textContent='🔄 Refreshing...';}
+  try{
+    if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
+    if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.update())); }
+  }catch(e){}
+  location.reload();
+}
 function toggleTheme(){ const on=document.body.classList.toggle('light'); try{localStorage.setItem('crm_light',on?'1':'0');}catch(e){} updateThemeBtn(); }
 function updateThemeBtn(){ const b=$('themeBtn'); if(b) b.textContent = document.body.classList.contains('light')?'\u{1F319} Night mode':'\u2600\uFE0F Day mode'; }
 function toggleHideBal(){ HIDEBAL=!HIDEBAL; try{localStorage.setItem('crm_hidebal',HIDEBAL?'1':'0');}catch(e){} updateHideBtn(); if(typeof CURRENT!=='undefined'&&CURRENT) go(CURRENT); }
