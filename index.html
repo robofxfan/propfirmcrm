@@ -241,6 +241,16 @@ function pdfReport(o){
       margin:{left:14,right:14}
     });
     let y=doc.lastAutoTable.finalY+10;
+    if(o.table2&&o.table2.rows.length){
+      if(y>doc.internal.pageSize.getHeight()-40){doc.addPage();y=20;}
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0);
+      doc.text(o.table2.title, 14, y-2);
+      doc.autoTable({startY:y+2,head:[o.table2.columns],body:o.table2.rows,
+        styles:{fontSize:9,cellPadding:2},
+        headStyles:{fillColor:[146,64,14],textColor:255,fontStyle:'bold'},
+        alternateRowStyles:{fillColor:[250,245,235]},margin:{left:14,right:14}});
+      y=doc.lastAutoTable.finalY+10;
+    }
     doc.setDrawColor(180); doc.setLineWidth(0.3); doc.line(14,y-5,W-14,y-5);
     doc.setFont('helvetica','bold'); doc.setFontSize(11);
     (o.totals||[]).forEach(t=>{
@@ -290,9 +300,13 @@ function pdfMonthlyExp(o){
     totals.unshift(['Received from Admin',o.cur+' '+pdfN(recv),PDF_GREEN]);
     totals.push(['Balance Left',o.cur+' '+pdfN(recv-allSpent),(recv-allSpent)>=0?PDF_GREEN:PDF_RED]);
   }
+  let frows=o.funds||[];
+  if(mSel!=='all') frows=frows.filter(x=>String(x.fund_date||'').slice(0,7)===mSel);
   pdfReport({section:o.section,period:(mSel==='all'?'Overall':mSel),
     columns:['Date','Category','Amount ('+o.cur+')','Notes'],
     rows:rows.map(x=>[x.entry_date||'',x.category||'',pdfN(x.amount),x.notes||'']),
+    table2:{title:'Funds received from Admin',columns:['Date','Amount ('+o.cur+')','Remarks'],
+      rows:frows.map(x=>[x.fund_date||'',pdfN(x.amount),x.notes||''])},
     totals, filename:o.file+'-'+(mSel==='all'?'overall':mSel)+'.pdf'});
 }
 function pdfPkr(){pdfMonthlyExp({data:pkrExpData,funds:pkrFundData,searchId:'pkrSearch',monthId:'pkrMonth',section:'PKR Monthly Expenses (Suh)',cur:'Rs',file:'majid-ali-pkr-expenses'});}
@@ -1082,6 +1096,24 @@ function pkrMonths(){
   for(let i=0;i<13;i++){ out.push({v:y+'-'+String(m).padStart(2,'0'),l:MN[m-1]+' '+y}); m++; if(m>12){m=1;y++;} }
   return out;
 }
+/* ---- shared: funds-from-admin table (per-user sections) ---- */
+function renderFundsTable(elId, funds, mSel, cur, isAdmin, table, refresh){
+  if(!$(elId)) return;
+  let rows=funds||[];
+  if(mSel!=='all') rows=rows.filter(x=>String(x.fund_date||'').slice(0,7)===mSel);
+  $(elId).innerHTML = rows.length?`<table><thead><tr>
+    <th>Date</th><th>Amount</th><th>Remarks (maqsad)</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.fund_date||''}</td>
+      <td style="color:var(--green2);font-weight:600">${cur(x.amount)}</td>
+      <td>${esc(x.notes||'')||'<span style="color:var(--muted)">-</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">${isAdmin?`<button class="btn danger sm" onclick="delRow('${table}','${x.id}',${refresh})">Del</button>`:''}</td>
+    </tr>`).join('')}
+    </tbody><tfoot><tr><td style="font-weight:700">Total received${mSel==='all'?'':' ('+mSel+')'}</td>
+      <td style="font-weight:700;color:var(--green2)">${cur(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">Abhi koi fund entry nahi.</div>';
+}
+
 async function pagePkr(){
   const isAdmin=ME.role==='admin';
   $('view').innerHTML=`<div class="page-title">\u{1F9FE} PKR Monthly Expenses</div>
@@ -1090,6 +1122,7 @@ async function pagePkr(){
     <div class="panel"><h3>\u{1F4C5} Month</h3>
       <div class="field" style="max-width:260px"><label>Select month</label><select id="pkrMonth" onchange="renderPkr()"></select></div>
       <div id="pkrMonthOut"></div></div>
+    <div class="panel"><h3>\u{1F3E6} Funds from Admin</h3><div id="pkrFundTable"></div></div>
     <div class="toolbar">
       <input class="grow" id="pkrSearch" placeholder="Search category or notes..." oninput="renderPkr()">
       ${isAdmin?`<button class="btn gold" onclick="pkrFundModal()">\u{1F3E6} Add Fund (to Suh)</button>`:''}
@@ -1109,6 +1142,7 @@ function renderPkr(){
   const isAdmin=ME.role==='admin';
   const q=($('pkrSearch').value||'').toLowerCase();
   const mSel=($('pkrMonth')||{}).value||'all';
+  renderFundsTable('pkrFundTable',pkrFundData,mSel,pkr,isAdmin,'pkr_funds','pagePkr');
   let rows=pkrExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
   if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
   const received=pkrFundData.reduce((s,x)=>s+Number(x.amount||0),0);
@@ -1194,6 +1228,7 @@ async function pageHaji(){
     <div class="panel"><h3>\u{1F4C5} Month</h3>
       <div class="field" style="max-width:260px"><label>Select month</label><select id="hajiMonth" onchange="renderHaji()"></select></div>
       <div id="hajiMonthOut"></div></div>
+    <div class="panel"><h3>\u{1F3E6} Funds from Admin</h3><div id="hajiFundTable"></div></div>
     <div class="toolbar">
       <input class="grow" id="hajiSearch" placeholder="Search category or notes..." oninput="renderHaji()">
       ${isAdmin?`<button class="btn gold" onclick="hajiFundModal()">\u{1F3E6} Add Fund (to Haji Saqib)</button>`:''}
@@ -1213,6 +1248,7 @@ function renderHaji(){
   const isAdmin=ME.role==='admin';
   const q=($('hajiSearch').value||'').toLowerCase();
   const mSel=($('hajiMonth')||{}).value||'all';
+  renderFundsTable('hajiFundTable',hajiFundData,mSel,pkr,isAdmin,'haji_funds','pageHaji');
   let rows=hajiExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
   if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
   const received=hajiFundData.reduce((s,x)=>s+Number(x.amount||0),0);
@@ -1298,6 +1334,7 @@ async function pageE69(){
     <div class="panel"><h3>\u{1F4C5} Month</h3>
       <div class="field" style="max-width:260px"><label>Select month</label><select id="e69Month" onchange="renderE69()"></select></div>
       <div id="e69MonthOut"></div></div>
+    <div class="panel"><h3>\u{1F3E6} Funds from Admin</h3><div id="e69FundTable"></div></div>
     <div class="toolbar">
       <input class="grow" id="e69Search" placeholder="Search category or notes..." oninput="renderE69()">
       ${isAdmin?`<button class="btn gold" onclick="e69FundModal()">\u{1F3E6} Add Fund (to E69)</button>`:''}
@@ -1317,6 +1354,7 @@ function renderE69(){
   const isAdmin=ME.role==='admin';
   const q=($('e69Search').value||'').toLowerCase();
   const mSel=($('e69Month')||{}).value||'all';
+  renderFundsTable('e69FundTable',e69FundData,mSel,pkr,isAdmin,'e69_funds','pageE69');
   let rows=e69ExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
   if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
   const received=e69FundData.reduce((s,x)=>s+Number(x.amount||0),0);
@@ -1402,6 +1440,7 @@ async function pageRiyal(){
     <div class="panel"><h3>\u{1F4C5} Month</h3>
       <div class="field" style="max-width:260px"><label>Select month</label><select id="riMonth" onchange="renderRiyal()"></select></div>
       <div id="riMonthOut"></div></div>
+    <div class="panel"><h3>\u{1F3E6} Funds from Admin</h3><div id="riFundTable"></div></div>
     <div class="toolbar">
       <input class="grow" id="riSearch" placeholder="Search category or notes..." oninput="renderRiyal()">
       ${isAdmin?`<button class="btn gold" onclick="riyalFundModal()">\u{1F3E6} Add Fund (to Ali)</button>`:''}
@@ -1421,6 +1460,7 @@ function renderRiyal(){
   const isAdmin=ME.role==='admin';
   const q=($('riSearch').value||'').toLowerCase();
   const mSel=($('riMonth')||{}).value||'all';
+  renderFundsTable('riFundTable',riyalFundData,mSel,sar,isAdmin,'riyal_funds','pageRiyal');
   let rows=riyalExpData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
   if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
   const received=riyalFundData.reduce((s,x)=>s+Number(x.amount||0),0);
