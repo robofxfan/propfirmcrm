@@ -1124,6 +1124,43 @@ function renderFundsTable(elId, funds, mSel, cur, isAdmin, table, refresh){
       <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">Abhi koi fund entry nahi.</div>';
 }
 
+/* ---- shared: date-sorted ledger (expenses + funds mixed) ---- */
+function ledgerTable(elId, expRows, fundRows, cur, isAdmin, expTable, fundTable, refresh, modalFn){
+  if(!$(elId)) return;
+  const merged=[...expRows.map(x=>({t:'e',d:String(x.entry_date||''),x})),
+                ...fundRows.map(x=>({t:'f',d:String(x.fund_date||''),x}))]
+    .sort((a,b)=>b.d.localeCompare(a.d));
+  const eTot=expRows.reduce((s,x)=>s+Number(x.amount||0),0);
+  const fTot=fundRows.reduce((s,x)=>s+Number(x.amount||0),0);
+  const bal=fTot-eTot;
+  $(elId).innerHTML = merged.length?`<table><thead><tr>
+    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${merged.map(r=>{
+      if(r.t==='f'){const f=r.x;return `<tr style="background:rgba(22,163,74,.08)">
+        <td>${f.fund_date||''}</td>
+        <td style="color:var(--green2);font-weight:700">💰 Fund Received</td>
+        <td style="color:var(--green2);font-weight:700">+ ${cur(f.amount)}</td>
+        <td>${esc(f.notes||'')}</td>
+        <td style="text-align:right;white-space:nowrap">${isAdmin?`<button class="btn danger sm" onclick="delRow('${fundTable}','${f.id}',${refresh})">Del</button>`:''}</td></tr>`;}
+      const x=r.x;return `<tr>
+        <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
+        <td style="color:#fca5a5;font-weight:600">− ${cur(x.amount)}</td>
+        <td>${esc(x.notes||'')}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn ghost sm" onclick='${modalFn}(${JSON.stringify(x)})'>Edit</button>
+          ${isAdmin?`<button class="btn danger sm" onclick="delRow('${expTable}','${x.id}',${refresh})">Del</button>`:''}
+        </td></tr>`;
+    }).join('')}
+    </tbody><tfoot>
+      <tr><td colspan="2" style="font-weight:700">Funds received (shown)</td>
+        <td style="font-weight:700;color:var(--green2)">+ ${cur(fTot)}</td><td colspan="2"></td></tr>
+      <tr><td colspan="2" style="font-weight:700">Expenses (shown)</td>
+        <td style="font-weight:700;color:#fca5a5">− ${cur(eTot)}</td><td colspan="2"></td></tr>
+      <tr><td colspan="2" style="font-weight:700">Balance (shown)</td>
+        <td style="font-weight:700;color:${bal>=0?'var(--green2)':'#fca5a5'}">${cur(bal)}</td><td colspan="2"></td></tr>
+    </tfoot></table>`:'<div class="empty">No entries here. Click "+ Add Expense".</div>';
+}
+
 async function pagePkr(){
   const isAdmin=ME.role==='admin';
   $('view').innerHTML=`<div class="page-title">\u{1F9FE} PKR Monthly Expenses</div>
@@ -1166,19 +1203,9 @@ function renderPkr(){
     const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
     $('pkrMonthOut').innerHTML=`<div class="cards">${card('This month spent',pkr(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
   }
-  $('pkrTable').innerHTML = rows.length?`<table><thead><tr>
-    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
-    ${rows.map(x=>`<tr>
-      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
-      <td style="color:#fca5a5;font-weight:600">${pkr(x.amount)}</td>
-      <td>${esc(x.notes||'')}</td>
-      <td style="text-align:right;white-space:nowrap">
-        <button class="btn ghost sm" onclick='pkrExpModal(${JSON.stringify(x)})'>Edit</button>
-        ${isAdmin?`<button class="btn danger sm" onclick="delRow('pkr_expenses','${x.id}',pagePkr)">Del</button>`:''}
-      </td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
-      <td style="font-weight:700;color:#fca5a5">${pkr(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
-      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+  let fundRows=(pkrFundData||[]).filter(f=>((f.notes||'')+' fund received admin').toLowerCase().includes(q));
+  if(mSel!=='all') fundRows=fundRows.filter(f=>String(f.fund_date||'').slice(0,7)===mSel);
+  ledgerTable('pkrTable',rows,fundRows,pkr,isAdmin,'pkr_expenses','pkr_funds','pagePkr','pkrExpModal');
 }
 function pkrExpModal(x){
   x=x||{}; const ed=!!x.id;
@@ -1272,19 +1299,9 @@ function renderHaji(){
     const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
     $('hajiMonthOut').innerHTML=`<div class="cards">${card('This month spent',pkr(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
   }
-  $('hajiTable').innerHTML = rows.length?`<table><thead><tr>
-    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
-    ${rows.map(x=>`<tr>
-      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
-      <td style="color:#fca5a5;font-weight:600">${pkr(x.amount)}</td>
-      <td>${esc(x.notes||'')}</td>
-      <td style="text-align:right;white-space:nowrap">
-        <button class="btn ghost sm" onclick='hajiExpModal(${JSON.stringify(x)})'>Edit</button>
-        ${isAdmin?`<button class="btn danger sm" onclick="delRow('haji_expenses','${x.id}',pageHaji)">Del</button>`:''}
-      </td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
-      <td style="font-weight:700;color:#fca5a5">${pkr(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
-      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+  let fundRows=(hajiFundData||[]).filter(f=>((f.notes||'')+' fund received admin').toLowerCase().includes(q));
+  if(mSel!=='all') fundRows=fundRows.filter(f=>String(f.fund_date||'').slice(0,7)===mSel);
+  ledgerTable('hajiTable',rows,fundRows,pkr,isAdmin,'haji_expenses','haji_funds','pageHaji','hajiExpModal');
 }
 function hajiExpModal(x){
   x=x||{}; const ed=!!x.id;
@@ -1378,19 +1395,9 @@ function renderE69(){
     const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
     $('e69MonthOut').innerHTML=`<div class="cards">${card('This month spent',pkr(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
   }
-  $('e69Table').innerHTML = rows.length?`<table><thead><tr>
-    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
-    ${rows.map(x=>`<tr>
-      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
-      <td style="color:#fca5a5;font-weight:600">${pkr(x.amount)}</td>
-      <td>${esc(x.notes||'')}</td>
-      <td style="text-align:right;white-space:nowrap">
-        <button class="btn ghost sm" onclick='e69ExpModal(${JSON.stringify(x)})'>Edit</button>
-        ${isAdmin?`<button class="btn danger sm" onclick="delRow('e69_expenses','${x.id}',pageE69)">Del</button>`:''}
-      </td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
-      <td style="font-weight:700;color:#fca5a5">${pkr(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
-      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+  let fundRows=(e69FundData||[]).filter(f=>((f.notes||'')+' fund received admin').toLowerCase().includes(q));
+  if(mSel!=='all') fundRows=fundRows.filter(f=>String(f.fund_date||'').slice(0,7)===mSel);
+  ledgerTable('e69Table',rows,fundRows,pkr,isAdmin,'e69_expenses','e69_funds','pageE69','e69ExpModal');
 }
 function e69ExpModal(x){
   x=x||{}; const ed=!!x.id;
@@ -1484,19 +1491,9 @@ function renderRiyal(){
     const mSpent=mrows.reduce((s,x)=>s+Number(x.amount||0),0);
     $('riMonthOut').innerHTML=`<div class="cards">${card('This month spent',sar(mSpent),'r')}${card('Entries',String(mrows.length),'gd')}</div>`;
   }
-  $('riTable').innerHTML = rows.length?`<table><thead><tr>
-    <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
-    ${rows.map(x=>`<tr>
-      <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
-      <td style="color:#fca5a5;font-weight:600">${sar(x.amount)}</td>
-      <td>${esc(x.notes||'')}</td>
-      <td style="text-align:right;white-space:nowrap">
-        <button class="btn ghost sm" onclick='riyalExpModal(${JSON.stringify(x)})'>Edit</button>
-        ${isAdmin?`<button class="btn danger sm" onclick="delRow('riyal_expenses','${x.id}',pageRiyal)">Del</button>`:''}
-      </td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total (shown)</td>
-      <td style="font-weight:700;color:#fca5a5">${sar(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
-      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">No expenses here. Click “+ Add Expense”.</div>';
+  let fundRows=(riyalFundData||[]).filter(f=>((f.notes||'')+' fund received admin').toLowerCase().includes(q));
+  if(mSel!=='all') fundRows=fundRows.filter(f=>String(f.fund_date||'').slice(0,7)===mSel);
+  ledgerTable('riTable',rows,fundRows,sar,isAdmin,'riyal_expenses','riyal_funds','pageRiyal','riyalExpModal');
 }
 function riyalExpModal(x){
   x=x||{}; const ed=!!x.id;
