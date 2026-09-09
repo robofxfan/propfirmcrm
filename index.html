@@ -121,6 +121,8 @@ tr:hover td{background:var(--panel2)}
     background:var(--panel);border:1px solid var(--border);border-radius:8px;
     width:42px;height:42px;align-items:center;justify-content:center;color:var(--text);font-size:20px;cursor:pointer}
 }
+@media(max-width:760px){#progressHeader{padding:56px 16px 0!important}#view{padding:20px 16px!important}}
+#progressHeader [aria-pressed="true"]{background:var(--green);color:#03150c}
 </style>
 </head>
 <body>
@@ -163,10 +165,11 @@ tr:hover td{background:var(--panel2)}
       <button class="btn ghost sm" style="width:100%" onclick="logout()">Logout</button>
     </div>
   </aside>
-  <main class="main" id="view"></main>
+  <div class="main" style="padding:0"><header id="progressHeader" class="hidden" style="padding:18px 32px 0;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><strong>Future Progress</strong><div class="row" role="group" aria-label="Future Progress source"><button class="btn ghost sm" data-progress-mode="cfd" onclick="openFutureProgress('cfd')">CFD</button><button class="btn ghost sm" data-progress-mode="futures" onclick="openFutureProgress('futures')">Futures</button><button class="btn ghost sm" data-progress-mode="both" onclick="openFutureProgress('both')">Both</button></div></header><main id="view" style="padding:28px 32px"></main></div>
 </div>
 
 <div id="modalRoot"></div>
+<script src="/future-progress.js?v=1"></script>
 
 <script>
 /* ============================================================ */
@@ -456,11 +459,12 @@ function buildNav(){
 
 let CURRENT='';
 function go(k){
+  stopFutureProgress();
   CURRENT=k;
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69}[k])();
+    futureprogress:pageFutureProgress,reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69}[k])();
 }
 
 async function boot(){
@@ -473,6 +477,7 @@ async function boot(){
   $('whoRole').className = 'badge '+ME.role;
   updateThemeBtn(); updateHideBtn();
   if($('hideBtn')) $('hideBtn').style.display = ME.role==='admin' ? 'block' : 'none';
+  $('progressHeader').classList.toggle('hidden',ME.role!=='admin');
   const allowed = buildNav();
   if(ME.role==='pending' || allowed.length===0){
     $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
