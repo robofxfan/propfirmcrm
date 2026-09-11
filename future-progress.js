@@ -54,7 +54,7 @@
 let progressAnchor=new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-01';
 const progressMonths=['January','February','March','April','May','June','July','August','September','October','November','December'];
 let progressMode='futures',progressPeriod='month',progressTimer=null,progressGeneration=0,progressChart=null;
-function stopFutureProgress(){clearInterval(progressTimer);progressTimer=null;progressGeneration++;if(progressChart){progressChart.destroy();progressChart=null;}}
+function stopFutureProgress(){clearMonthlyReport();clearInterval(progressTimer);progressTimer=null;progressGeneration++;if(progressChart){progressChart.destroy();progressChart=null;}}
 function openFutureProgress(mode){progressMode=mode;go('futureprogress');}
 function setProgressDate(value){
   if(!/^\d{4}-\d{2}-01$/.test(value)||Number(value.slice(0,4))<1900||Number(value.slice(0,4))>9998)return;
@@ -87,6 +87,7 @@ function pageFutureProgress(){
     <div class="toolbar" aria-label="Performance period">${[['week','Weekly'],['month','Monthly'],['quarter','Quarterly'],['six','6 Months'],['year','Yearly']].map(([k,l])=>`<button class="btn ${progressPeriod===k?'':'ghost'}" aria-pressed="${progressPeriod===k}" onclick="progressPeriod='${k}';go('futureprogress')">${l}</button>`).join('')}
     <button class="btn ghost" id="progressRefresh" onclick="loadFutureProgress()">↻ Refresh</button></div>
     ${progressPicker()}
+    ${progressPeriod==='month'?'<div class="toolbar"><button class="btn" id="monthlyPdfTop" disabled onclick="downloadMonthlyReport()">Download monthly PDF</button><button class="btn ghost" onclick="document.getElementById(\'monthlyReport\')?.scrollIntoView({behavior:\'smooth\'})">View detailed analysis</button></div>':''}
     <div class="page-sub">${range.from} → ${range.to} · ${progressPeriod==='week'?'Last 7 days':'Calendar period · '+(progressPeriod==='month'?progressMonths[Number(range.from.slice(5,7))-1]+' '+range.from.slice(0,4):progressPeriod==='quarter'?'Quarterly':progressPeriod==='six'?'Half-yearly':'Yearly')} · Auto refresh every 60 seconds</div>
     <div id="progressStatus" role="status" aria-live="polite">Loading current records…</div>
     <div id="progressResults"></div>`;
@@ -110,29 +111,45 @@ async function progressCFD(range){
   ]);
   return [...expenses.map(r=>({date:r.spent_on,expense:Number(r.cost),expenseCount:1})),...payouts.map(r=>({date:r.payout_date,revenue:r.status==='paid'?Number(r.net_amount??r.amount):0,revenueCount:r.status==='paid'?1:0,pending:r.status==='paid'?0:Number(r.net_amount??r.amount)}))];
 }
-async function progressFutures(range){
+async function progressFutures(range,detailed=false){
   const {data,error}=await sb.auth.getSession();
   if(error||!data.session)throw Error('Please log in to the CRM again.');
-  const url='https://propdesk-accounts.robofxfan-propdesk.workers.dev/api/integrations/crm-progress?'+new URLSearchParams(range);
+  const url='https://propdesk-accounts.robofxfan-propdesk.workers.dev/api/integrations/crm-progress?'+new URLSearchParams(detailed?{...range,details:'1'}:range);
   const response=await fetch(url,{headers:{Authorization:'Bearer '+data.session.access_token},cache:'no-store',signal:AbortSignal.timeout(20000)});
   const json=await response.json();
   if(!response.ok)throw Error(json.error||'Hisab sync unavailable');
-  if(!Array.isArray(json.days)||json.currency!=='USD')throw Error('Invalid Hisab response');
-  return json.days;
+  if((detailed?(!Array.isArray(json.expenses)||!Array.isArray(json.payouts)):!Array.isArray(json.days))||json.currency!=='USD')throw Error('Invalid Hisab response');
+  return detailed?json:json.days;
+}
+async function progressCFDDetails(range){
+  const [expenses,payouts]=await Promise.all([
+    progressReadTable('expenses','id,spent_on,cost,prop_firm,account_size,notes','spent_on',range),
+    progressReadTable('payouts','id,payout_date,amount,net_amount,status,prop_firm,payout_for,account_size,split_pct,notes','payout_date',range)
+  ]);return {expenses,payouts};
 }
 async function loadFutureProgress(){
-  const generation=++progressGeneration,mode=progressMode,range=ProgressMath.period(progressPeriod,progressPeriod==='week'?undefined:progressAnchor);
+  const generation=++progressGeneration,mode=progressMode,range=ProgressMath.period(progressPeriod,progressPeriod==='week'?undefined:progressAnchor),isMonth=progressPeriod==='month';
   const status=$('progressStatus'),results=$('progressResults');if(!status||!results)return;
+  clearMonthlyReport();for(const id of ['monthlyPdf','monthlyPdfTop'])if($(id))$(id).disabled=true;
   status.textContent='Syncing latest records…';const button=$('progressRefresh');if(button)button.disabled=true;
   try{
-    const [cfd,futures]=await Promise.all([mode==='futures'?[]:progressCFD(range),mode==='cfd'?[]:progressFutures(range)]);
+    let cfd,futures,report;
+    if(isMonth){
+      const [cfdDetails,hisabDetails]=await Promise.all([progressCFDDetails(range),progressFutures(range,true)]);
+      report=MonthlyReport.build(cfdDetails,hisabDetails,range);
+      cfd=MonthlyReport.daily(report.rows.filter(r=>r.source==='CFD'));
+      futures=MonthlyReport.daily(report.rows.filter(r=>r.source==='Futures'));
+    }else{
+      [cfd,futures]=await Promise.all([mode==='futures'?[]:progressCFD(range),mode==='cfd'?[]:progressFutures(range)]);
+    }
     if(generation!==progressGeneration||CURRENT!=='futureprogress')return;
     const data=ProgressMath.aggregate(cfd,futures,mode,range.from,range.to);
     renderFutureProgress(data,range);
-    status.textContent='✓ Updated '+new Date().toLocaleTimeString()+' · '+(mode==='both'?'CFD CRM + Hisab':mode==='cfd'?'CFD CRM':'Hisab')+' · Read-only';
+    if(report)renderMonthlyReport(report);
+    status.textContent='✓ Updated '+new Date().toLocaleTimeString()+' · '+(isMonth?'Full monthly report: CFD + Hisab':mode==='both'?'CFD CRM + Hisab':mode==='cfd'?'CFD CRM':'Hisab')+' · Read-only';
   }catch(error){
     if(generation!==progressGeneration||CURRENT!=='futureprogress')return;
-    if(progressChart){progressChart.destroy();progressChart=null;}
+    clearMonthlyReport();if(progressChart){progressChart.destroy();progressChart=null;}
     results.innerHTML='';status.textContent='Unable to show complete performance: '+error.message+' Use Refresh to retry.';
   }finally{if(generation===progressGeneration&&$('progressRefresh'))$('progressRefresh').disabled=false;}
 }
@@ -144,6 +161,7 @@ function renderFutureProgress(data,range){
     <p class="page-sub">${t.revenueCount} received revenue entries · ${t.expenseCount} expense entries · Pending / unpaid: ${money(t.pending)} (excluded from net)</p>
     <div class="panel"><h3>Progress over time</h3><div style="height:260px;position:relative"><canvas id="progressChart" aria-label="Revenue, expenses and net performance" role="img"></canvas></div></div>
     <div class="panel"><h3>Monthly performance</h3><p class="page-sub">Each month separately · Click a month for daily details. Empty months show zero.</p><div style="overflow-x:auto"><table><thead><tr><th>Month</th><th>Revenue (+)</th><th>Expenses (−)</th><th>Net performance</th><th>ROI</th></tr></thead><tbody>${months.map(r=>`<tr><td><button class="btn ghost" onclick="progressPeriod='month';setProgressDate('${r.month}-01')">${progressMonths[Number(r.month.slice(5,7))-1]} ${r.month.slice(0,4)}</button></td><td>+${money(r.revenue)}</td><td>−${money(r.expense)}</td><td>${signed(r.net)}</td><td>${HIDEBAL?'••••':r.roi===null?'—':r.roi.toFixed(1)+'%'}</td></tr>`).join('')}</tbody></table></div></div>
+    <div id="monthlyReport"></div>
     <div class="panel"><h3>Source breakdown</h3><div style="overflow-x:auto"><table><thead><tr><th>Source</th><th>Revenue (+)</th><th>Expenses (−)</th><th>Net</th></tr></thead><tbody>${data.breakdown.map(r=>`<tr><td>${r.source}</td><td>${'+'+money(r.revenue)}</td><td>${'−'+money(r.expense)}</td><td>${signed(r.net)}</td></tr>`).join('')}</tbody></table></div></div>
     <div class="panel"><h3>Daily progress</h3><div style="overflow-x:auto">${data.days.length?`<table><thead><tr><th>Date</th><th>Revenue (+)</th><th>Expenses (−)</th><th>Net</th></tr></thead><tbody>${data.days.slice().reverse().map(r=>`<tr><td>${esc(r.date)}</td><td>+${money(r.revenue)}</td><td>−${money(r.expense)}</td><td>${signed(r.revenue-r.expense)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No entries in this period.</div>'}</div></div>
     <p class="page-sub">Futures revenue follows Hisab: received amount after split and fees. CFD uses the existing CRM expense and paid-payout records.</p>`;
