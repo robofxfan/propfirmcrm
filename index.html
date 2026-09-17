@@ -79,6 +79,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
 .badge.almeer{background:#0a2530;color:#67e8f9}
 .badge.haji{background:#2a1a05;color:#fbbf24}
 .badge.e69{background:#1a052a;color:#d8b4fe}
+.badge.dividend{background:#052a1a;color:#6ee7b7}
 .main{margin-left:230px;flex:1;padding:26px 30px;width:calc(100% - 230px)}
 .page-title{font-size:22px;font-weight:800;margin-bottom:2px}
 .page-sub{color:var(--muted);margin-bottom:22px;font-size:13px}
@@ -121,8 +122,6 @@ tr:hover td{background:var(--panel2)}
     background:var(--panel);border:1px solid var(--border);border-radius:8px;
     width:42px;height:42px;align-items:center;justify-content:center;color:var(--text);font-size:20px;cursor:pointer}
 }
-@media(max-width:760px){#progressHeader{padding:56px 16px 0!important}#view{padding:20px 16px!important}}
-#progressHeader [aria-pressed="true"]{background:var(--green);color:#03150c}
 </style>
 </head>
 <body>
@@ -165,12 +164,10 @@ tr:hover td{background:var(--panel2)}
       <button class="btn ghost sm" style="width:100%" onclick="logout()">Logout</button>
     </div>
   </aside>
-  <div class="main" style="padding:0"><header id="progressHeader" class="hidden" style="padding:18px 32px 0;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><strong>Future Progress</strong><div class="row" role="group" aria-label="Future Progress source"><button class="btn ghost sm" data-progress-mode="cfd" onclick="openFutureProgress('cfd')">CFD</button><button class="btn ghost sm" data-progress-mode="futures" onclick="openFutureProgress('futures')">Futures</button><button class="btn ghost sm" data-progress-mode="both" onclick="openFutureProgress('both')">Both</button></div></header><main id="view" style="padding:28px 32px"></main></div>
+  <main class="main" id="view"></main>
 </div>
 
 <div id="modalRoot"></div>
-<script src="/monthly-report.js?v=1"></script>
-<script src="/future-progress.js?v=3"></script>
 
 <script>
 /* ============================================================ */
@@ -207,6 +204,8 @@ const EQ_SIZES=['100K','125K','150K','200K','300K','400K'];
 let eqData=[];
 const PKR_CATS=['Grocery','Mobile Device','Laptop','Sim Pkg','Rent','Bill','Food','Maintenance','Return Fund'];
 const E69_CATS=['Bricks','Cement','Steel','Thekedar','Woodwork','Glasswork','Tilework','Electrician','Labour'];
+const DIV_BANKS=['Meezan Bank','HBL','UBL','MCB','Bank Alfalah','Allied Bank','Faysal Bank','JS Bank','Askari Bank','Standard Chartered'];
+let dividendData=[]; let divPersons=[];
 let pkrExpData=[]; let pkrFundData=[];
 let riyalExpData=[]; let riyalFundData=[];
 let hajiExpData=[]; let hajiFundData=[];
@@ -372,6 +371,8 @@ async function backup(){
     ['haji_expenses','haji-expenses',['entry_date','category','amount','notes']],
     ['e69_funds','e69-funds',['fund_date','amount','notes']],
     ['e69_expenses','e69-expenses',['entry_date','category','amount','notes']],
+    ['dividend_entries','dividends',['received_date','company','amount','person','profile','bank']],
+    ['dividend_persons','dividend-persons',['name','profile','active']],
     ['profiles','users',['email','role','active','created_at']]
   ];
   let n=0;
@@ -443,6 +444,7 @@ const NAV = [
   {k:'riyalexp', label:'Riyal Expenses',ic:'💵',roles:['admin','riyal']},
   {k:'hajiexp',  label:'Haji Expenses',ic:'🧾',roles:['admin','haji']},
   {k:'e69exp',   label:'E69 Expenses',ic:'🧾',roles:['admin','e69']},
+  {k:'dividend', label:'Dividend CGT',ic:'💵',roles:['admin','dividend']},
   {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures','hedge']},
   {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
   {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
@@ -460,12 +462,11 @@ function buildNav(){
 
 let CURRENT='';
 function go(k){
-  stopFutureProgress();
   CURRENT=k;
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    futureprogress:pageFutureProgress,reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend}[k])();
 }
 
 async function boot(){
@@ -478,7 +479,6 @@ async function boot(){
   $('whoRole').className = 'badge '+ME.role;
   updateThemeBtn(); updateHideBtn();
   if($('hideBtn')) $('hideBtn').style.display = ME.role==='admin' ? 'block' : 'none';
-  $('progressHeader').classList.toggle('hidden',ME.role!=='admin');
   const allowed = buildNav();
   if(ME.role==='pending' || allowed.length===0){
     $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
@@ -796,7 +796,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -849,7 +849,7 @@ function newUserModal(){
     <div class="field"><label>Password * (min 6 chars — default: same as username)</label>
       <input id="nu_pw" oninput="this.dataset.touched='1'"></div>
     <div class="field"><label>Role *</label><select id="nu_role">
-      ${['almeer','haji','e69','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      ${['almeer','haji','e69','dividend','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px">⚠️ Username/password create hote hi sirf EK BAAR dikhaya jayega — note kar lein.</div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -1450,6 +1450,171 @@ async function saveE69Fund(){
   if(error){alert(error.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
   logAct('Add E69 fund',pkr(rec.amount));
   closeModal(); pageE69();
+}
+
+/* ============================================================
+   DIVIDEND CGT  (user: DividendCGT) — dividend entries, year-wise
+============================================================ */
+async function pageDividend(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">💵 Dividend CGT</div>
+    <div class="page-sub">Dividend records — sirf wohi final amount enter karein jo bank mein actually credit hui ho.</div>
+    <div class="cards" id="divCards"></div>
+    <div class="toolbar">
+      <select id="divYear" onchange="renderDividend()" style="max-width:140px"></select>
+      <input class="grow" id="divSearch" placeholder="Search company, person, profile, bank, date..." oninput="renderDividend()">
+      ${isAdmin?`<button class="btn gold" onclick="divPersonsModal()">👥 Persons</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfDividend()">⬇ PDF</button>`:''}
+      <button class="btn" onclick="divModal()">+ Add Dividend</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="divTable"></div></div>`;
+  const [{data:en=[]},{data:pe=[]}]=await Promise.all([
+    sb.from('dividend_entries').select('*').order('received_date',{ascending:false}),
+    sb.from('dividend_persons').select('*').order('name')]);
+  dividendData=en||[]; divPersons=pe||[];
+  const years=[...new Set([new Date().getFullYear(),...dividendData.map(x=>Number(String(x.received_date||'').slice(0,4))).filter(Boolean)])].sort((a,b)=>b-a);
+  $('divYear').innerHTML='<option value="all">All years</option>'+years.map(y=>`<option>${y}</option>`).join('');
+  renderDividend();
+}
+function renderDividend(){
+  const isAdmin=ME.role==='admin';
+  const q=($('divSearch').value||'').toLowerCase();
+  const ySel=($('divYear')||{}).value||'all';
+  let rows=dividendData.filter(x=>((x.company||'')+' '+(x.person||'')+' '+(x.profile||'')+' '+(x.bank||'')+' '+(x.received_date||'')).toLowerCase().includes(q));
+  if(ySel!=='all') rows=rows.filter(x=>String(x.received_date||'').slice(0,4)===String(ySel));
+  rows=[...rows].sort((a,b)=>String(b.received_date||'').localeCompare(String(a.received_date||'')));
+  const tot=rows.reduce((s,x)=>s+Number(x.amount||0),0);
+  $('divCards').innerHTML=card('Entries (shown)',String(rows.length),'gd')+card('Total Dividend Received',pkr(tot),'g');
+  let html='',curYear='';
+  rows.forEach(x=>{
+    const y=String(x.received_date||'').slice(0,4);
+    if(y!==curYear){curYear=y;html+=`<tr><td colspan="7" style="font-weight:800;color:var(--gold2);background:var(--panel2)">📅 ${y}</td></tr>`;}
+    html+=`<tr>
+      <td>${x.received_date||''}</td><td style="font-weight:600">${esc(x.company||'')}</td>
+      <td style="color:var(--green2);font-weight:700">${pkr(x.amount)}</td>
+      <td>${esc(x.person||'')}</td><td>${esc(x.profile||'')}</td><td>${esc(x.bank||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='divModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('dividend_entries','${x.id}',pageDividend)">Del</button>`:''}
+      </td></tr>`;
+  });
+  $('divTable').innerHTML=rows.length?`<table><thead><tr>
+    <th>Date</th><th>Share / Company</th><th>Amount Received</th><th>Person</th><th>Profile</th><th>Bank</th><th></th></tr></thead>
+    <tbody>${html}</tbody>
+    <tfoot><tr><td colspan="2" style="font-weight:700">Total Dividend Received (shown)</td>
+      <td style="font-weight:700;color:var(--green2)">${pkr(tot)}</td><td colspan="4"></td></tr></tfoot></table>`
+    :'<div class="empty">No dividend entries yet. Click "+ Add Dividend".</div>';
+}
+function divModal(x){
+  x=x||{}; const ed=!!x.id;
+  const act=divPersons.filter(p=>p.active!==false);
+  if(!act.length && !ed){alert('Pehle admin se Person add karwayen (👥 Persons).');if(ME.role!=='admin')return;}
+  const profiles=[...new Set(divPersons.map(p=>p.profile).filter(Boolean))];
+  openModal(`<h3>${ed?'Edit':'Add'} Dividend</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Dividend Received Date *</label>
+      <input id="dv_date" type="date" value="${x.received_date||new Date().toISOString().slice(0,10)}"></div>
+      <div class="field" style="flex:1"><label>Final Amount Received (Rs) *</label>
+      <input id="dv_amt" type="number" step="0.01" value="${x.amount!=null?x.amount:''}" placeholder="bank credit amount"></div></div>
+    <div class="field"><label>Share / Company Name *</label><input id="dv_co" value="${esc(x.company||'')}" placeholder="e.g. HUBC, BAFL, Millat Tractors"></div>
+    <div class="field"><label>Person Name *</label><select id="dv_person" onchange="divAutoProfile()">
+      <option value="">Select...</option>
+      ${act.map(p=>`<option data-prof="${esc(p.profile||'')}" ${x.person===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}
+      ${ed&&x.person&&!act.some(p=>p.name===x.person)?`<option selected>${esc(x.person)}</option>`:''}
+    </select></div>
+    <div class="field">${pickField('dv_prof','Profile *',profiles,x.profile)}</div>
+    <div class="field">${pickField('dv_bank','Bank Name *',DIV_BANKS,x.bank)}</div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="dv_saveBtn" onclick="saveDividend('${x.id||''}')">Save</button></div>`);
+}
+function divAutoProfile(){
+  const sel=$('dv_person'); if(!sel) return;
+  const o=sel.options[sel.selectedIndex];
+  const prof=o?(o.getAttribute('data-prof')||''):'';
+  const ps=$('dv_prof_sel'); if(!ps||!prof) return;
+  if([...ps.options].some(op=>op.value===prof)){ ps.value=prof; }
+  else { ps.value='__other__'; $('dv_prof_oth').value=prof; }
+  ps.dispatchEvent(new Event('change'));
+}
+async function saveDividend(id){
+  const rec={received_date:$('dv_date').value,company:$('dv_co').value.trim(),amount:Number($('dv_amt').value||0),
+    person:$('dv_person').value,profile:pickVal('dv_prof'),bank:pickVal('dv_bank'),updated_at:new Date().toISOString()};
+  if(!rec.received_date){alert('Dividend received date zaroori hai');return;}
+  if(!rec.company){alert('Share/Company name zaroori hai');return;}
+  if(!(rec.amount>0)){alert('Sahi amount enter karein (bank credit amount)');return;}
+  if(!rec.person){alert('Person select karein');return;}
+  if(!rec.profile){alert('Profile zaroori hai');return;}
+  if(!rec.bank){alert('Bank name zaroori hai');return;}
+  if(!id){
+    const dup=dividendData.find(x=>x.received_date===rec.received_date&&(x.company||'').toLowerCase()===rec.company.toLowerCase()&&Number(x.amount)===rec.amount&&x.person===rec.person);
+    if(dup && !confirm('⚠️ Aisi hi entry pehle se maujood hai (same date, company, amount, person).\n\nPhir bhi save karein?')) return;
+  }
+  const btn=$('dv_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('dividend_entries').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('dividend_entries').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update dividend':'Add dividend',rec.company+' '+pkr(rec.amount)+' ('+rec.person+')');
+  closeModal(); pageDividend();
+}
+function divPersonsModal(){
+  openModal(`<h3>👥 Persons & Profiles</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Person name</label><input id="dp_name"></div>
+      <div class="field" style="flex:1"><label>Profile</label><input id="dp_prof" placeholder="e.g. AKD, Topline, MMK"></div></div>
+    <button class="btn" style="margin-bottom:14px" onclick="saveDivPerson('')">+ Add Person</button>
+    <div id="dp_list"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="closeModal();pageDividend()">Close</button></div>`);
+  renderDivPersons();
+}
+function renderDivPersons(){
+  const el=$('dp_list'); if(!el) return;
+  el.innerHTML=divPersons.length?`<table><thead><tr><th>Name</th><th>Profile</th><th>Status</th><th></th></tr></thead><tbody>
+    ${divPersons.map(p=>`<tr>
+      <td>${esc(p.name)}</td><td>${esc(p.profile||'')}</td>
+      <td>${p.active!==false?'<span class="pill paid">active</span>':'<span class="pill pending">inactive</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick="editDivPerson('${p.id}')">Edit</button>
+        <button class="btn ghost sm" onclick="toggleDivPerson('${p.id}',${p.active===false})">${p.active!==false?'Disable':'Enable'}</button>
+      </td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">No persons yet. Upar se add karein.</div>';
+}
+async function saveDivPerson(id){
+  const name=$('dp_name').value.trim(), prof=$('dp_prof').value.trim();
+  if(!name){alert('Person name required');return;}
+  let err;
+  if(id){({error:err}=await sb.from('dividend_persons').update({name,profile:prof}).eq('id',id));}
+  else{({error:err}=await sb.from('dividend_persons').insert({name,profile:prof,active:true,created_by:ME.id}));}
+  if(err){alert(err.message);return;}
+  logAct(id?'Edit dividend person':'Add dividend person',name);
+  const {data}=await sb.from('dividend_persons').select('*').order('name'); divPersons=data||[];
+  $('dp_name').value='';$('dp_prof').value='';
+  renderDivPersons();
+}
+function editDivPerson(id){
+  const p=divPersons.find(x=>x.id===id); if(!p) return;
+  const nn=prompt('Person name:',p.name); if(nn===null) return;
+  const np=prompt('Profile:',p.profile||''); if(np===null) return;
+  $('dp_name').value=nn; $('dp_prof').value=np;
+  saveDivPerson(id);
+}
+async function toggleDivPerson(id,val){
+  const {error}=await sb.from('dividend_persons').update({active:val}).eq('id',id);
+  if(error){alert(error.message);return;}
+  logAct('Toggle dividend person',val?'enabled':'disabled');
+  const {data}=await sb.from('dividend_persons').select('*').order('name'); divPersons=data||[];
+  renderDivPersons();
+}
+function pdfDividend(){
+  const q=(($('divSearch')||{}).value||'').toLowerCase();
+  const ySel=($('divYear')||{}).value||'all';
+  let rows=dividendData.filter(x=>((x.company||'')+' '+(x.person||'')+' '+(x.profile||'')+' '+(x.bank||'')+' '+(x.received_date||'')).toLowerCase().includes(q));
+  if(ySel!=='all') rows=rows.filter(x=>String(x.received_date||'').slice(0,4)===String(ySel));
+  rows=[...rows].sort((a,b)=>String(b.received_date||'').localeCompare(String(a.received_date||'')));
+  pdfReport({section:'Dividend CGT — Received Dividends',period:(ySel==='all'?'All years':ySel),
+    columns:['Date','Share / Company','Amount (Rs)','Person','Profile','Bank'],
+    rows:rows.map(x=>[x.received_date||'',x.company||'',pdfN(x.amount),x.person||'',x.profile||'',x.bank||'']),
+    totals:[['Total Dividend Received','Rs '+pdfN(rows.reduce((s,x)=>s+Number(x.amount||0),0)),PDF_GREEN]],
+    filename:'majid-ali-dividend-'+(ySel==='all'?'all-years':ySel)+'.pdf'});
 }
 
 /* ============================================================
