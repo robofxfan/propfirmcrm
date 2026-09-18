@@ -1716,11 +1716,19 @@ async function saveUsaInv(id){
   if(!rec.exchange){alert('Exchange select karein');return;}
   if(!(rec.amount>0)){alert('Sahi amount enter karein');return;}
   if(!rec.person){alert('Person select karein');return;}
-  if(!id){
-    const dup=usaInvData.find(x=>x.invest_date===rec.invest_date&&x.exchange===rec.exchange&&Number(x.amount)===rec.amount&&x.person===rec.person);
-    if(dup && !confirm('⚠️ Aisi hi entry pehle se maujood hai (same date, exchange, amount, person).\n\nPhir bhi save karein?')) return;
-  }
   const btn=$('ui_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  if(!id){
+    const ex=usaInvData.find(x=>(x.exchange||'').toLowerCase()===rec.exchange.toLowerCase()&&(x.person||'').toLowerCase()===rec.person.toLowerCase());
+    if(ex){
+      const newAmt=Number(ex.amount||0)+rec.amount;
+      const newNotes=[ex.notes,rec.notes].filter(Boolean).join(' | ');
+      const {error:e2}=await sb.from('usa_investments').update({amount:newAmt,invest_date:rec.invest_date,notes:newNotes,updated_at:new Date().toISOString()}).eq('id',ex.id);
+      if(e2){alert(e2.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+      logAct('Add USA investment (auto-merged)',rec.exchange+' +'+money(rec.amount)+' = '+money(newAmt)+' ('+rec.person+')');
+      closeModal(); alert('✅ '+rec.exchange+' ('+rec.person+') ki purani row mein add ho gaya:\n'+money(Number(ex.amount||0))+' + '+money(rec.amount)+' = '+money(newAmt));
+      pageUsaInv(); return;
+    }
+  }
   let err;
   if(id){({error:err}=await sb.from('usa_investments').update(rec).eq('id',id));}
   else{rec.created_by=ME.id;({error:err}=await sb.from('usa_investments').insert(rec));}
