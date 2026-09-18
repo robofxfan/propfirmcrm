@@ -425,12 +425,14 @@ async function checkForcedLogout(){
   }catch(e){}
 }
 async function forceLogoutAll(){
-  if(!confirm('Tamam devices se SAB users logout ho jayenge aur unhe dobara password dalna hoga.\n\n(Aapka ye wala device logged in rahega.)\n\nJaari rakhein?')) return;
+  if(!confirm('Tamam devices se SAB users logout ho jayenge — admin samet, YE device bhi.\n\nSabko dobara password dalna hoga.\n\nJaari rakhein?')) return;
   const {error}=await sb.rpc('admin_force_logout');
   if(error){alert('Error: '+error.message);return;}
-  try{localStorage.setItem('crm_login_at', String(Math.floor(Date.now()/1000)+5));}catch(e){}
   logAct('Force logout all devices','');
-  alert('✅ Ho gaya — har purana login (sab devices pe) 1 minute ke andar khud logout ho jayega, ya jaise hi wo koi page kholenge.');
+  alert('✅ Ho gaya — har login (sab devices, admin samet) logout ho raha hai. Ye device abhi logout hoga; baqi 1 minute ke andar.');
+  try{localStorage.removeItem('crm_login_at');}catch(e){}
+  await sb.auth.signOut();
+  location.reload();
 }
 
 /* ---- Web Push (phone notifications) ---- */
