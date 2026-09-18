@@ -401,12 +401,37 @@ async function doAuth(){
   try{
     const {error} = await sb.auth.signInWithPassword({email:toEmail(uname),password:pass});
     if(error) throw error;
+    try{localStorage.setItem('crm_login_at', String(Math.floor(Date.now()/1000)));}catch(e){}
     await boot();
   }catch(e){ authMsg('Wrong username or password.'); }
   $('authBtn').disabled=false;
 }
 
 async function logout(){ await sb.auth.signOut(); location.reload(); }
+
+/* ---- forced signout from all devices ---- */
+async function checkForcedLogout(){
+  try{
+    const {data}=await sb.from('app_settings').select('value').eq('key','logout_epoch').maybeSingle();
+    if(!data||!data.value) return;
+    const epoch=Number(data.value)||0;
+    let mine=0; try{mine=Number(localStorage.getItem('crm_login_at')||0);}catch(e){}
+    if(mine<epoch){
+      try{localStorage.removeItem('crm_login_at');}catch(e){}
+      await sb.auth.signOut();
+      alert('🔒 Admin ne tamam devices se logout kar diya hai. Dobara login karein.');
+      location.reload();
+    }
+  }catch(e){}
+}
+async function forceLogoutAll(){
+  if(!confirm('Tamam devices se SAB users logout ho jayenge aur unhe dobara password dalna hoga.\n\n(Aapka ye wala device logged in rahega.)\n\nJaari rakhein?')) return;
+  const {error}=await sb.rpc('admin_force_logout');
+  if(error){alert('Error: '+error.message);return;}
+  try{localStorage.setItem('crm_login_at', String(Math.floor(Date.now()/1000)+5));}catch(e){}
+  logAct('Force logout all devices','');
+  alert('✅ Ho gaya — har purana login (sab devices pe) 1 minute ke andar khud logout ho jayega, ya jaise hi wo koi page kholenge.');
+}
 
 /* ---- Web Push (phone notifications) ---- */
 function urlB64ToUint8(s){const pad='='.repeat((4-s.length%4)%4);const b=(s+pad).replace(/-/g,'+').replace(/_/g,'/');const r=atob(b);return Uint8Array.from([...r].map(c=>c.charCodeAt(0)));}
@@ -485,6 +510,7 @@ async function boot(){
   $('whoRole').className = 'badge '+ME.role;
   updateThemeBtn(); updateHideBtn();
   if($('hideBtn')) $('hideBtn').style.display = ME.role==='admin' ? 'block' : 'none';
+  checkForcedLogout(); setInterval(checkForcedLogout, 60000);
   const allowed = buildNav();
   if(ME.role==='pending' || allowed.length===0){
     $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
@@ -790,7 +816,9 @@ function renderReport(){
 async function pageUsers(){
   $('view').innerHTML=`<div class="page-title">Users</div>
     <div class="page-sub">Assign each user's role and enable/disable access.</div>
-    <div class="toolbar"><span class="grow"></span><button class="btn" onclick="newUserModal()">➕ Add User</button></div>
+    <div class="toolbar"><span class="grow"></span>
+      <button class="btn danger" onclick="forceLogoutAll()">🚪 Signout all devices</button>
+      <button class="btn" onclick="newUserModal()">➕ Add User</button></div>
     <div class="panel" style="padding:0"><div id="usrTable"></div></div>`;
   const {data}=await sb.from('profiles').select('*').order('created_at');
   const rows=data||[];
