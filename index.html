@@ -1509,41 +1509,31 @@ function divModal(x){
   x=x||{}; const ed=!!x.id;
   const act=divPersons.filter(p=>p.active!==false);
   if(!act.length && !ed){alert('Pehle admin se Person add karwayen (👥 Persons).');if(ME.role!=='admin')return;}
-  const profiles=[...new Set(divPersons.map(p=>p.profile).filter(Boolean))];
   openModal(`<h3>${ed?'Edit':'Add'} Dividend</h3>
     <div class="row"><div class="field" style="flex:1"><label>Dividend Received Date *</label>
       <input id="dv_date" type="date" value="${x.received_date||new Date().toISOString().slice(0,10)}"></div>
       <div class="field" style="flex:1"><label>Final Amount Received (Rs) *</label>
       <input id="dv_amt" type="number" step="0.01" value="${x.amount!=null?x.amount:''}" placeholder="bank credit amount"></div></div>
     <div class="field"><label>Share / Company Name *</label><input id="dv_co" value="${esc(x.company||'')}" placeholder="e.g. HUBC, BAFL, Millat Tractors"></div>
-    <div class="field"><label>Person Name *</label><select id="dv_person" onchange="divAutoProfile()">
+    <div class="field"><label>Person Name *</label><select id="dv_person">
       <option value="">Select...</option>
       ${act.map(p=>`<option data-prof="${esc(p.profile||'')}" ${x.person===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}
       ${ed&&x.person&&!act.some(p=>p.name===x.person)?`<option selected>${esc(x.person)}</option>`:''}
     </select></div>
-    <div class="field">${pickField('dv_prof','Profile *',profiles,x.profile)}</div>
     <div class="field">${pickField('dv_bank','Bank Name *',DIV_BANKS,x.bank)}</div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
       <button class="btn" id="dv_saveBtn" onclick="saveDividend('${x.id||''}')">Save</button></div>`);
 }
-function divAutoProfile(){
-  const sel=$('dv_person'); if(!sel) return;
-  const o=sel.options[sel.selectedIndex];
-  const prof=o?(o.getAttribute('data-prof')||''):'';
-  const ps=$('dv_prof_sel'); if(!ps||!prof) return;
-  if([...ps.options].some(op=>op.value===prof)){ ps.value=prof; }
-  else { ps.value='__other__'; $('dv_prof_oth').value=prof; }
-  ps.dispatchEvent(new Event('change'));
-}
 async function saveDividend(id){
+  const psel=$('dv_person'); const popt=psel?psel.options[psel.selectedIndex]:null;
+  const autoProf=popt?(popt.getAttribute('data-prof')||''):'';
   const rec={received_date:$('dv_date').value,company:$('dv_co').value.trim(),amount:Number($('dv_amt').value||0),
-    person:$('dv_person').value,profile:pickVal('dv_prof'),bank:pickVal('dv_bank'),updated_at:new Date().toISOString()};
+    person:$('dv_person').value,profile:autoProf,bank:pickVal('dv_bank'),updated_at:new Date().toISOString()};
   if(!rec.received_date){alert('Dividend received date zaroori hai');return;}
   if(!rec.company){alert('Share/Company name zaroori hai');return;}
   if(!(rec.amount>0)){alert('Sahi amount enter karein (bank credit amount)');return;}
   if(!rec.person){alert('Person select karein');return;}
-  if(!rec.profile){alert('Profile zaroori hai');return;}
   if(!rec.bank){alert('Bank name zaroori hai');return;}
   if(!id){
     const dup=dividendData.find(x=>x.received_date===rec.received_date&&(x.company||'').toLowerCase()===rec.company.toLowerCase()&&Number(x.amount)===rec.amount&&x.person===rec.person);
