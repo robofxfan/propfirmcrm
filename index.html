@@ -80,6 +80,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
 .badge.haji{background:#2a1a05;color:#fbbf24}
 .badge.e69{background:#1a052a;color:#d8b4fe}
 .badge.dividend{background:#052a1a;color:#6ee7b7}
+.badge.usainvest{background:#05122a;color:#93c5fd}
 .main{margin-left:230px;flex:1;padding:26px 30px;width:calc(100% - 230px)}
 .page-title{font-size:22px;font-weight:800;margin-bottom:2px}
 .page-sub{color:var(--muted);margin-bottom:22px;font-size:13px}
@@ -206,6 +207,9 @@ const PKR_CATS=['Grocery','Mobile Device','Laptop','Sim Pkg','Rent','Bill','Food
 const E69_CATS=['Bricks','Cement','Steel','Thekedar','Woodwork','Glasswork','Tilework','Electrician','Labour'];
 const DIV_BANKS=['Meezan Bank','HBL','UBL','MCB','Bank Alfalah','Allied Bank','Faysal Bank','JS Bank','Askari Bank','Standard Chartered'];
 let dividendData=[]; let divPersons=[];
+const USA_EXCH=['IBKR','BN','BITGT','OKX'];
+const USA_INV_PERSONS=['Majid','Iram','Talha'];
+let usaInvData=[];
 let pkrExpData=[]; let pkrFundData=[];
 let riyalExpData=[]; let riyalFundData=[];
 let hajiExpData=[]; let hajiFundData=[];
@@ -373,6 +377,7 @@ async function backup(){
     ['e69_expenses','e69-expenses',['entry_date','category','amount','notes']],
     ['dividend_entries','dividends',['received_date','company','amount','person','profile','bank']],
     ['dividend_persons','dividend-persons',['name','profile','active']],
+    ['usa_investments','usa-investments',['invest_date','exchange','amount','person','notes']],
     ['profiles','users',['email','role','active','created_at']]
   ];
   let n=0;
@@ -445,6 +450,7 @@ const NAV = [
   {k:'hajiexp',  label:'Haji Expenses',ic:'🧾',roles:['admin','haji']},
   {k:'e69exp',   label:'E69 Expenses',ic:'🧾',roles:['admin','e69']},
   {k:'dividend', label:'Dividend CGT',ic:'💵',roles:['admin','dividend']},
+  {k:'usainv',   label:'USA Investments',ic:'💹',roles:['admin','usainvest']},
   {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures','hedge']},
   {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
   {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
@@ -466,7 +472,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend,usainv:pageUsaInv}[k])();
 }
 
 async function boot(){
@@ -796,7 +802,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend','usainvest'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -849,7 +855,7 @@ function newUserModal(){
     <div class="field"><label>Password * (min 6 chars — default: same as username)</label>
       <input id="nu_pw" oninput="this.dataset.touched='1'"></div>
     <div class="field"><label>Role *</label><select id="nu_role">
-      ${['almeer','haji','e69','dividend','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      ${['almeer','haji','e69','dividend','usainvest','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px">⚠️ Username/password create hote hi sirf EK BAAR dikhaya jayega — note kar lein.</div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -1605,6 +1611,105 @@ function pdfDividend(){
     rows:rows.map(x=>[x.received_date||'',x.company||'',pdfN(x.amount),x.person||'',x.profile||'',x.bank||'']),
     totals:[['Total Dividend Received','Rs '+pdfN(rows.reduce((s,x)=>s+Number(x.amount||0),0)),PDF_GREEN]],
     filename:'majid-ali-dividend-'+(ySel==='all'?'all-years':ySel)+'.pdf'});
+}
+
+/* ============================================================
+   USA INVESTMENTS  (viewer: StocksCraze) — admin enters, user views
+============================================================ */
+async function pageUsaInv(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">💹 USA Investments</div>
+    <div class="page-sub">USA stocks/crypto mein ab tak ki investment — exchange-wise aur date-wise record.${isAdmin?'':' (View only)'}</div>
+    <div class="cards" id="uiCards"></div>
+    <div class="row" style="margin-bottom:20px">
+      <div class="panel" style="flex:1;min-width:260px;margin-bottom:0"><h3>🏛 Exchange-wise</h3><div id="uiExch"></div></div>
+      <div class="panel" style="flex:1;min-width:260px;margin-bottom:0"><h3>👤 Person-wise</h3><div id="uiPers"></div></div>
+    </div>
+    <div class="toolbar">
+      <input class="grow" id="uiSearch" placeholder="Search exchange, person, date, notes..." oninput="renderUsaInv()">
+      ${isAdmin?`<button class="btn ghost" onclick="pdfUsaInv()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn" onclick="usaInvModal()">+ Add Investment</button>`:''}
+    </div>
+    <div class="panel" style="padding:0"><div id="uiTable"></div></div>`;
+  const {data}=await sb.from('usa_investments').select('*').order('invest_date',{ascending:false});
+  usaInvData=data||[];
+  renderUsaInv();
+}
+function renderUsaInv(){
+  const isAdmin=ME.role==='admin';
+  const q=($('uiSearch').value||'').toLowerCase();
+  let rows=usaInvData.filter(x=>((x.exchange||'')+' '+(x.person||'')+' '+(x.notes||'')+' '+(x.invest_date||'')).toLowerCase().includes(q));
+  rows=[...rows].sort((a,b)=>String(b.invest_date||'').localeCompare(String(a.invest_date||'')));
+  const tot=usaInvData.reduce((s,x)=>s+Number(x.amount||0),0);
+  $('uiCards').innerHTML=card('Total Invested (overall)',money(tot),'g')+card('Total Entries',String(usaInvData.length),'gd');
+  const sumBy=(key)=>{const m={};usaInvData.forEach(x=>{const k=x[key]||'-';m[k]=(m[k]||0)+Number(x.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);};
+  $('uiExch').innerHTML=usaInvData.length?`<table><thead><tr><th>Exchange</th><th>Invested</th></tr></thead><tbody>
+    ${sumBy('exchange').map(([k,v])=>`<tr><td style="font-weight:600">${esc(k)}</td><td style="color:var(--green2);font-weight:700">${money(v)}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">No data yet.</div>';
+  $('uiPers').innerHTML=usaInvData.length?`<table><thead><tr><th>Person</th><th>Invested</th></tr></thead><tbody>
+    ${sumBy('person').map(([k,v])=>`<tr><td style="font-weight:600">${esc(k)}</td><td style="color:var(--green2);font-weight:700">${money(v)}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">No data yet.</div>';
+  const shown=rows.reduce((s,x)=>s+Number(x.amount||0),0);
+  $('uiTable').innerHTML=rows.length?`<table><thead><tr>
+    <th>Date</th><th>Exchange</th><th>Amount ($)</th><th>Person</th><th>Notes</th>${isAdmin?'<th></th>':''}</tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.invest_date||''}</td><td style="font-weight:600">${esc(x.exchange||'')}</td>
+      <td style="color:var(--green2);font-weight:700">${money(x.amount)}</td>
+      <td>${esc(x.person||'')}</td><td>${esc(x.notes||'')}</td>
+      ${isAdmin?`<td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='usaInvModal(${JSON.stringify(x)})'>Edit</button>
+        <button class="btn danger sm" onclick="delRow('usa_investments','${x.id}',pageUsaInv)">Del</button>
+      </td>`:''}</tr>`).join('')}
+    </tbody><tfoot><tr><td style="font-weight:700">Total (shown)</td><td></td>
+      <td style="font-weight:700;color:var(--green2)">${money(shown)}</td><td colspan="${isAdmin?3:2}"></td></tr></tfoot></table>`
+    :'<div class="empty">No investments yet.'+(isAdmin?' Click "+ Add Investment".':'')+'</div>';
+}
+function usaInvModal(x){
+  if(ME.role!=='admin'){return;}
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Investment</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Date *</label>
+      <input id="ui_date" type="date" value="${x.invest_date||new Date().toISOString().slice(0,10)}"></div>
+      <div class="field" style="flex:1"><label>Amount ($) *</label>
+      <input id="ui_amt" type="number" step="0.01" value="${x.amount!=null?x.amount:''}"></div></div>
+    <div class="field">${pickField('ui_exch','Exchange *',USA_EXCH,x.exchange)}</div>
+    <div class="field">${pickField('ui_person','Person *',USA_INV_PERSONS,x.person)}</div>
+    <div class="field"><label>Notes</label><textarea id="ui_notes" rows="2">${esc(x.notes||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="ui_saveBtn" onclick="saveUsaInv('${x.id||''}')">Save</button></div>`);
+}
+async function saveUsaInv(id){
+  const rec={invest_date:$('ui_date').value,exchange:pickVal('ui_exch'),amount:Number($('ui_amt').value||0),
+    person:pickVal('ui_person'),notes:$('ui_notes').value.trim(),updated_at:new Date().toISOString()};
+  if(!rec.invest_date){alert('Date zaroori hai');return;}
+  if(!rec.exchange){alert('Exchange select karein');return;}
+  if(!(rec.amount>0)){alert('Sahi amount enter karein');return;}
+  if(!rec.person){alert('Person select karein');return;}
+  if(!id){
+    const dup=usaInvData.find(x=>x.invest_date===rec.invest_date&&x.exchange===rec.exchange&&Number(x.amount)===rec.amount&&x.person===rec.person);
+    if(dup && !confirm('⚠️ Aisi hi entry pehle se maujood hai (same date, exchange, amount, person).\n\nPhir bhi save karein?')) return;
+  }
+  const btn=$('ui_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('usa_investments').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('usa_investments').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update USA investment':'Add USA investment',rec.exchange+' '+money(rec.amount)+' ('+rec.person+')');
+  closeModal(); pageUsaInv();
+}
+function pdfUsaInv(){
+  const q=(($('uiSearch')||{}).value||'').toLowerCase();
+  let rows=usaInvData.filter(x=>((x.exchange||'')+' '+(x.person||'')+' '+(x.notes||'')+' '+(x.invest_date||'')).toLowerCase().includes(q));
+  rows=[...rows].sort((a,b)=>String(b.invest_date||'').localeCompare(String(a.invest_date||'')));
+  const m={};rows.forEach(x=>{const k=x.exchange||'-';m[k]=(m[k]||0)+Number(x.amount||0);});
+  pdfReport({section:'USA Investments',period:'Overall',
+    columns:['Date','Exchange','Amount ($)','Person','Notes'],
+    rows:rows.map(x=>[x.invest_date||'',x.exchange||'',pdfN(x.amount),x.person||'',x.notes||'']),
+    table2:{title:'Exchange-wise Summary',columns:['Exchange','Total Invested ($)'],
+      rows:Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,pdfN(v)])},
+    totals:[['Total Invested','$ '+pdfN(rows.reduce((s,x)=>s+Number(x.amount||0),0)),PDF_GREEN]],
+    filename:'majid-ali-usa-investments.pdf'});
 }
 
 /* ============================================================
