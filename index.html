@@ -81,6 +81,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
 .badge.e69{background:#1a052a;color:#d8b4fe}
 .badge.dividend{background:#052a1a;color:#6ee7b7}
 .badge.usainvest{background:#05122a;color:#93c5fd}
+.badge.remit{background:#2a0518;color:#f9a8d4}
 .main{margin-left:230px;flex:1;padding:26px 30px;width:calc(100% - 230px)}
 .page-title{font-size:22px;font-weight:800;margin-bottom:2px}
 .page-sub{color:var(--muted);margin-bottom:22px;font-size:13px}
@@ -210,6 +211,11 @@ let dividendData=[]; let divPersons=[];
 const USA_EXCH=['IBKR','BN','BITGT','OKX'];
 const USA_INV_PERSONS=['Majid','Iram','Talha'];
 let usaInvData=[]; let usaInvHist=[];
+const REMIT_PURPOSES=['F&F','IT Services'];
+const REMIT_RECEIVERS=['MAJID ALI','SAJID HUSSAIN','IRAM','TALHA','TARIQ','SAJID'];
+const REMIT_BANKS=['Meezan Bank','HBL','Bank Islami','Soneri Bank','Allied Bank','Faysal Bank','Bank Al Habib'];
+const REMIT_COUNTRIES=['UAE','Saudi Arabia','UK','USA','Qatar','Oman','Kuwait','Canada','Australia'];
+let remitData=[];
 let pkrExpData=[]; let pkrFundData=[];
 let riyalExpData=[]; let riyalFundData=[];
 let hajiExpData=[]; let hajiFundData=[];
@@ -379,6 +385,7 @@ async function backup(){
     ['dividend_persons','dividend-persons',['name','profile','active']],
     ['usa_investments','usa-investments',['invest_date','exchange','amount','person','notes']],
     ['usa_inv_history','usa-inv-history',['invest_date','exchange','amount','person','notes']],
+    ['remittances','remittances',['entry_date','receiver','sender','purpose','bank','country','amount']],
     ['profiles','users',['email','role','active','created_at']]
   ];
   let n=0;
@@ -479,6 +486,7 @@ const NAV = [
   {k:'e69exp',   label:'E69 Expenses',ic:'🧾',roles:['admin','e69']},
   {k:'dividend', label:'Dividend CGT',ic:'💵',roles:['admin','dividend']},
   {k:'usainv',   label:'USA Investments',ic:'💹',roles:['admin','usainvest']},
+  {k:'remit',    label:'Remittances',ic:'💱',roles:['admin','remit']},
   {k:'readybuy', label:'Ready to Buy',ic:'🛒',roles:['admin','futures','hedge']},
   {k:'psxstocks',label:'PSX Stocks', ic:'📊',roles:['admin','stocks']},
   {k:'usastocks',label:'USA Stocks', ic:'💹',roles:['admin','stocks']},
@@ -500,7 +508,7 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend,usainv:pageUsaInv}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend,usainv:pageUsaInv,remit:pageRemit}[k])();
 }
 
 async function boot(){
@@ -833,7 +841,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend','usainvest'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend','usainvest','remit'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -886,7 +894,7 @@ function newUserModal(){
     <div class="field"><label>Password * (min 6 chars — default: same as username)</label>
       <input id="nu_pw" oninput="this.dataset.touched='1'"></div>
     <div class="field"><label>Role *</label><select id="nu_role">
-      ${['almeer','haji','e69','dividend','usainvest','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      ${['almeer','haji','e69','dividend','usainvest','remit','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px">⚠️ Username/password create hote hi sirf EK BAAR dikhaya jayega — note kar lein.</div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -1764,6 +1772,115 @@ function pdfUsaInv(){
       rows:Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,pdfN(v)])},
     totals:[['Total Invested','$ '+pdfN(rows.reduce((s,x)=>s+Number(x.amount||0),0)),PDF_GREEN]],
     filename:'majid-ali-usa-investments.pdf'});
+}
+
+/* ============================================================
+   REMITTANCES  (user: remmitances)
+============================================================ */
+async function pageRemit(){
+  const isAdmin=ME.role==='admin';
+  $('view').innerHTML=`<div class="page-title">💱 Remittances</div>
+    <div class="page-sub">Remittance records — receiver, sender, purpose, bank, country aur amount.</div>
+    <div class="cards" id="rmCards"></div>
+    <div class="toolbar">
+      <select id="rmFY" onchange="renderRemit()" style="max-width:230px"></select>
+      <select id="rmMonth" onchange="renderRemit()" style="max-width:170px"></select>
+      <input class="grow" id="rmSearch" placeholder="Search person, purpose, bank, country..." oninput="renderRemit()">
+      ${isAdmin?`<button class="btn ghost" onclick="pdfRemit()">⬇ PDF</button>`:''}
+      <button class="btn" onclick="remitModal()">+ Add Remittance</button>
+    </div>
+    <div class="panel" style="padding:0"><div id="rmTable"></div></div>`;
+  const {data}=await sb.from('remittances').select('*').order('entry_date',{ascending:false}).order('created_at',{ascending:false});
+  remitData=data||[];
+  const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const mset=new Set(remitData.map(x=>String(x.entry_date||'').slice(0,7)).filter(Boolean)); mset.add(new Date().toISOString().slice(0,7));
+  const months=[...mset].sort().reverse();
+  $('rmMonth').innerHTML='<option value="all">All months</option>'+months.map(v=>{const p=v.split('-');return `<option value="${v}">${MN[Number(p[1])-1]||p[1]} ${p[0]}</option>`;}).join('');
+  const fyOf=d=>{const y=Number(d.slice(0,4)),mo=Number(d.slice(5,7));return mo>=7?y:(y-1);};
+  const fset=new Set(remitData.map(x=>String(x.entry_date||'')).filter(Boolean).map(fyOf)); fset.add(fyOf(new Date().toISOString().slice(0,10)));
+  const fys=[...fset].sort((a,b)=>b-a);
+  $('rmFY').innerHTML='<option value="all">Overall (all years)</option>'+fys.map(y=>`<option value="${y}">FY ${y}-${String((y+1)%100).padStart(2,'0')} (1 Jul ${y} – 30 Jun ${y+1})</option>`).join('');
+  renderRemit();
+}
+function remitFiltered(){
+  const q=(($('rmSearch')||{}).value||'').toLowerCase();
+  const mSel=($('rmMonth')||{}).value||'all';
+  const fSel=($('rmFY')||{}).value||'all';
+  let rows=remitData.filter(x=>((x.receiver||'')+' '+(x.sender||'')+' '+(x.purpose||'')+' '+(x.bank||'')+' '+(x.country||'')+' '+(x.entry_date||'')).toLowerCase().includes(q));
+  if(fSel!=='all'){const y=Number(fSel);const from=y+'-07-01',to=(y+1)+'-06-30';rows=rows.filter(x=>{const d=String(x.entry_date||'');return d>=from&&d<=to;});}
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  return rows;
+}
+function renderRemit(){
+  const isAdmin=ME.role==='admin';
+  let rows=remitFiltered();
+  const tot=rows.reduce((s,x)=>s+Number(x.amount||0),0);
+  $('rmCards').innerHTML=card('Total Remittances (shown)',pkr(tot),'g')+card('Entries',String(rows.length),'gd');
+  $('rmTable').innerHTML=rows.length?`<table><thead><tr>
+    <th>Date</th><th>Receiver</th><th>Sender</th><th>Purpose</th><th>Bank</th><th>Country</th><th>Amount</th><th></th></tr></thead><tbody>
+    ${rows.map(x=>`<tr>
+      <td>${x.entry_date||''}</td><td style="font-weight:600">${esc(x.receiver||'')}</td>
+      <td>${esc(x.sender||'')}</td><td>${esc(x.purpose||'')}</td>
+      <td>${esc(x.bank||'')}</td><td>${esc(x.country||'')}</td>
+      <td style="color:var(--green2);font-weight:700">${pkr(x.amount)}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn ghost sm" onclick='remitModal(${JSON.stringify(x)})'>Edit</button>
+        ${isAdmin?`<button class="btn danger sm" onclick="delRow('remittances','${x.id}',pageRemit)">Del</button>`:''}
+      </td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="6" style="font-weight:700">Total (shown)</td>
+      <td style="font-weight:700;color:var(--green2)">${pkr(tot)}</td><td></td></tr></tfoot></table>`
+    :'<div class="empty">No remittances yet. Click "+ Add Remittance".</div>';
+}
+function remitModal(x){
+  x=x||{}; const ed=!!x.id;
+  openModal(`<h3>${ed?'Edit':'Add'} Remittance</h3>
+    <div class="row"><div class="field" style="flex:1"><label>Date *</label>
+      <input id="rm_date" type="date" value="${x.entry_date||new Date().toISOString().slice(0,10)}"></div>
+      <div class="field" style="flex:1"><label>Amount (Rs) *</label>
+      <input id="rm_amt" type="number" step="0.01" value="${x.amount!=null?x.amount:''}"></div></div>
+    <div class="row"><div class="field" style="flex:1">${pickField('rm_recv','Receiver *',REMIT_RECEIVERS,x.receiver)}</div>
+      <div class="field" style="flex:1"><label>Sender *</label>
+      <input id="rm_send" value="${esc(x.sender||'')}" placeholder="kis ne bheja (manual name)"></div></div>
+    <div class="field">${pickField('rm_purp','Purpose *',REMIT_PURPOSES,x.purpose)}</div>
+    <div class="field">${pickField('rm_bank','Bank *',REMIT_BANKS,x.bank)}</div>
+    <div class="field">${pickField('rm_country','Country *',REMIT_COUNTRIES,x.country)}</div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="rm_saveBtn" onclick="saveRemit('${x.id||''}')">Save</button></div>`);
+}
+async function saveRemit(id){
+  const rec={entry_date:$('rm_date').value,receiver:pickVal('rm_recv'),sender:$('rm_send').value.trim(),
+    purpose:pickVal('rm_purp'),bank:pickVal('rm_bank'),country:pickVal('rm_country'),
+    amount:Number($('rm_amt').value||0),updated_at:new Date().toISOString()};
+  if(!rec.entry_date){alert('Date zaroori hai');return;}
+  if(!rec.receiver){alert('Receiver ka naam likhein');return;}
+  if(!rec.sender){alert('Sender ka naam likhein');return;}
+  if(!rec.purpose){alert('Purpose select karein');return;}
+  if(!rec.bank){alert('Bank select karein');return;}
+  if(!rec.country){alert('Country select karein');return;}
+  if(!(rec.amount>0)){alert('Sahi amount enter karein');return;}
+  if(!id){
+    const dup=remitData.find(x=>x.entry_date===rec.entry_date&&(x.receiver||'').toLowerCase()===rec.receiver.toLowerCase()&&Number(x.amount)===rec.amount&&(x.sender||'').toLowerCase()===rec.sender.toLowerCase());
+    if(dup && !confirm('⚠️ Aisi hi entry pehle se maujood hai (same date, receiver, sender, amount).\n\nPhir bhi save karein?')) return;
+  }
+  const btn=$('rm_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  let err;
+  if(id){({error:err}=await sb.from('remittances').update(rec).eq('id',id));}
+  else{rec.created_by=ME.id;({error:err}=await sb.from('remittances').insert(rec));}
+  if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  logAct(id?'Update remittance':'Add remittance',rec.receiver+' '+pkr(rec.amount)+' ('+rec.country+')');
+  closeModal(); pageRemit();
+}
+function pdfRemit(){
+  let rows=remitFiltered();
+  const mSel=($('rmMonth')||{}).value||'all';
+  const fSel=($('rmFY')||{}).value||'all';
+  const period=mSel!=='all'?mSel:(fSel!=='all'?('FY '+fSel+'-'+String((Number(fSel)+1)%100).padStart(2,'0')+' (1 Jul – 30 Jun)'):'Overall');
+  pdfReport({section:'Remittances',period:period,
+    columns:['Date','Receiver','Sender','Purpose','Bank','Country','Amount (Rs)'],
+    rows:rows.map(x=>[x.entry_date||'',x.receiver||'',x.sender||'',x.purpose||'',x.bank||'',x.country||'',pdfN(x.amount)]),
+    totals:[['Total Remittances','Rs '+pdfN(rows.reduce((s,x)=>s+Number(x.amount||0),0)),PDF_GREEN]],
+    filename:'majid-ali-remittances.pdf'});
 }
 
 /* ============================================================
