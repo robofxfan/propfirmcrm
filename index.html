@@ -209,7 +209,7 @@ const DIV_BANKS=['Meezan Bank','HBL','UBL','MCB','Bank Alfalah','Allied Bank','F
 let dividendData=[]; let divPersons=[];
 const USA_EXCH=['IBKR','BN','BITGT','OKX'];
 const USA_INV_PERSONS=['Majid','Iram','Talha'];
-let usaInvData=[];
+let usaInvData=[]; let usaInvHist=[];
 let pkrExpData=[]; let pkrFundData=[];
 let riyalExpData=[]; let riyalFundData=[];
 let hajiExpData=[]; let hajiFundData=[];
@@ -378,6 +378,7 @@ async function backup(){
     ['dividend_entries','dividends',['received_date','company','amount','person','profile','bank']],
     ['dividend_persons','dividend-persons',['name','profile','active']],
     ['usa_investments','usa-investments',['invest_date','exchange','amount','person','notes']],
+    ['usa_inv_history','usa-inv-history',['invest_date','exchange','amount','person','notes']],
     ['profiles','users',['email','role','active','created_at']]
   ];
   let n=0;
@@ -1660,9 +1661,12 @@ async function pageUsaInv(){
       ${isAdmin?`<button class="btn ghost" onclick="pdfUsaInv()">⬇ PDF</button>`:''}
       ${isAdmin?`<button class="btn" onclick="usaInvModal()">+ Add Investment</button>`:''}
     </div>
-    <div class="panel" style="padding:0"><div id="uiTable"></div></div>`;
-  const {data}=await sb.from('usa_investments').select('*').order('invest_date',{ascending:false});
-  usaInvData=data||[];
+    <div class="panel" style="padding:0"><div id="uiTable"></div></div>
+    <div class="panel"><h3>📜 Investment History (har transaction)</h3><div id="uiHist"></div></div>`;
+  const [{data:en=[]},{data:hi=[]}]=await Promise.all([
+    sb.from('usa_investments').select('*').order('invest_date',{ascending:false}),
+    sb.from('usa_inv_history').select('*').order('invest_date',{ascending:false}).order('created_at',{ascending:false})]);
+  usaInvData=en||[]; usaInvHist=hi||[];
   renderUsaInv();
 }
 function renderUsaInv(){
@@ -1693,6 +1697,16 @@ function renderUsaInv(){
     </tbody><tfoot><tr><td style="font-weight:700">Total (shown)</td><td></td>
       <td style="font-weight:700;color:var(--green2)">${money(shown)}</td><td colspan="${isAdmin?3:2}"></td></tr></tfoot></table>`
     :'<div class="empty">No investments yet.'+(isAdmin?' Click "+ Add Investment".':'')+'</div>';
+  let hrows=usaInvHist.filter(x=>((x.exchange||'')+' '+(x.person||'')+' '+(x.notes||'')+' '+(x.invest_date||'')).toLowerCase().includes(q));
+  $('uiHist').innerHTML=hrows.length?`<table><thead><tr>
+    <th>Date</th><th>Exchange</th><th>Amount</th><th>Person</th><th>Notes</th></tr></thead><tbody>
+    ${hrows.map(x=>`<tr>
+      <td>${x.invest_date||''}</td><td style="font-weight:600">${esc(x.exchange||'')}</td>
+      <td style="color:var(--green2);font-weight:700">+ ${money(x.amount)}</td>
+      <td>${esc(x.person||'')}</td><td>${esc(x.notes||'')}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td style="font-weight:700">Total (shown)</td><td></td>
+      <td style="font-weight:700;color:var(--green2)">${money(hrows.reduce((s,x)=>s+Number(x.amount||0),0))}</td><td colspan="2"></td></tr></tfoot></table>`
+    :'<div class="empty">Abhi koi history nahi.</div>';
 }
 function usaInvModal(x){
   if(ME.role!=='admin'){return;}
@@ -1724,6 +1738,7 @@ async function saveUsaInv(id){
       const newNotes=[ex.notes,rec.notes].filter(Boolean).join(' | ');
       const {error:e2}=await sb.from('usa_investments').update({amount:newAmt,invest_date:rec.invest_date,notes:newNotes,updated_at:new Date().toISOString()}).eq('id',ex.id);
       if(e2){alert(e2.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+      try{await sb.from('usa_inv_history').insert({invest_date:rec.invest_date,exchange:ex.exchange,amount:rec.amount,person:ex.person,notes:rec.notes,created_by:ME.id});}catch(e){}
       logAct('Add USA investment (auto-merged)',rec.exchange+' +'+money(rec.amount)+' = '+money(newAmt)+' ('+rec.person+')');
       closeModal(); alert('✅ '+rec.exchange+' ('+rec.person+') ki purani row mein add ho gaya:\n'+money(Number(ex.amount||0))+' + '+money(rec.amount)+' = '+money(newAmt));
       pageUsaInv(); return;
@@ -1733,6 +1748,7 @@ async function saveUsaInv(id){
   if(id){({error:err}=await sb.from('usa_investments').update(rec).eq('id',id));}
   else{rec.created_by=ME.id;({error:err}=await sb.from('usa_investments').insert(rec));}
   if(err){alert(err.message);if(btn){btn.disabled=false;btn.textContent='Save';}return;}
+  if(!id){try{await sb.from('usa_inv_history').insert({invest_date:rec.invest_date,exchange:rec.exchange,amount:rec.amount,person:rec.person,notes:rec.notes,created_by:ME.id});}catch(e){}}
   logAct(id?'Update USA investment':'Add USA investment',rec.exchange+' '+money(rec.amount)+' ('+rec.person+')');
   closeModal(); pageUsaInv();
 }
