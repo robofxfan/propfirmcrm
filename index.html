@@ -274,6 +274,25 @@ function pdfReport(o){
         alternateRowStyles:{fillColor:[250,245,235]},margin:{left:14,right:14}});
       y=doc.lastAutoTable.finalY+10;
     }
+    if(o.bars&&o.bars.items&&o.bars.items.length){
+      if(y>doc.internal.pageSize.getHeight()-40){doc.addPage();y=20;}
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0);
+      doc.text(o.bars.title, 14, y); y+=7;
+      const maxV=Math.max.apply(null,o.bars.items.map(i=>i[1]))||1;
+      const barMaxW=W-14-62-42;
+      o.bars.items.forEach(it=>{
+        if(y>doc.internal.pageSize.getHeight()-15){doc.addPage();y=20;}
+        doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60);
+        doc.text(String(it[0]).slice(0,20), 14, y+4);
+        const bw=Math.max(2,(it[1]/maxV)*barMaxW);
+        doc.setFillColor(22,163,74);
+        doc.roundedRect(62, y, bw, 5.5, 1, 1, 'F');
+        doc.setTextColor(20,83,45); doc.setFont('helvetica','bold');
+        doc.text('Rs '+pdfN(it[1]), 62+bw+3, y+4.3);
+        y+=10;
+      });
+      y+=5;
+    }
     doc.setDrawColor(180); doc.setLineWidth(0.3); doc.line(14,y-5,W-14,y-5);
     doc.setFont('helvetica','bold'); doc.setFontSize(11);
     (o.totals||[]).forEach(t=>{
@@ -1876,11 +1895,17 @@ function pdfRemit(){
   const mSel=($('rmMonth')||{}).value||'all';
   const fSel=($('rmFY')||{}).value||'all';
   const period=mSel!=='all'?mSel:(fSel!=='all'?('FY '+fSel+'-'+String((Number(fSel)+1)%100).padStart(2,'0')+' (1 Jul – 30 Jun)'):'Overall');
+  const overall=(mSel==='all'&&fSel==='all');
+  const rmMap={}; rows.forEach(x=>{const k=x.receiver||'-';rmMap[k]=(rmMap[k]||0)+Number(x.amount||0);});
+  const items=Object.entries(rmMap).sort((a,b)=>b[1]-a[1]);
   pdfReport({section:'Remittances',period:period,
     columns:['Date','Receiver','Sender','Purpose','Bank','Country','Amount (Rs)'],
     rows:rows.map(x=>[x.entry_date||'',x.receiver||'',x.sender||'',x.purpose||'',x.bank||'',x.country||'',pdfN(x.amount)]),
+    table2:overall?{title:'Receiver-wise Summary (kis ko kitna mila)',columns:['Receiver','Total Received (Rs)'],
+      rows:items.map(function(e){return [e[0],pdfN(e[1])];})}:undefined,
+    bars:overall?{title:'Receiver-wise Progress Graph',items:items}:undefined,
     totals:[['Total Remittances','Rs '+pdfN(rows.reduce((s,x)=>s+Number(x.amount||0),0)),PDF_GREEN]],
-    filename:'majid-ali-remittances.pdf'});
+    filename:'majid-ali-remittances-'+(mSel!=='all'?mSel:(fSel!=='all'?('fy-'+fSel):'overall'))+'.pdf'});
 }
 
 /* ============================================================
