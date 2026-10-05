@@ -398,6 +398,76 @@ function pdfStocks(){
 /* ---- CSV backup ---- */
 function dlFile(name,text,type){const b=new Blob([text],{type:type||'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function toCSV(rows,cols){const esc2=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';return cols.join(',')+'\n'+rows.map(r=>cols.map(c=>esc2(r[c])).join(',')).join('\n');}
+
+/* ---- per-page CSV downloads (admin) ---- */
+function csvDl(tag,rows,cols){
+  if(!rows.length){alert('Koi data nahi mila (filter check karein).');return;}
+  dlFile('majid-ali-'+tag+'-'+new Date().toISOString().slice(0,10)+'.csv', toCSV(rows,cols));
+  logAct('Download CSV',tag+' ('+rows.length+' rows)');
+}
+function csvExpenses(){
+  const q=(($('expSearch')||{}).value||'').toLowerCase();
+  const rows=expData.filter(e=>(e.prop_firm+' '+(e.notes||'')).toLowerCase().includes(q));
+  csvDl('expenses',rows,['spent_on','prop_firm','account_size','cost','notes']);
+}
+function csvPayouts(){
+  const q=(($('paySearch')||{}).value||'').toLowerCase();
+  let rows=payData.filter(p=>(p.prop_firm+' '+(p.notes||'')).toLowerCase().includes(q));
+  if(typeof payFilter!=='undefined'&&payFilter!=='all')rows=rows.filter(p=>p.status===payFilter);
+  csvDl('payouts',rows,['payout_date','prop_firm','account_size','payout_for','amount','split_pct','net_amount','status','notes']);
+}
+function csvMonthlyExp(o){
+  const q=(($(o.searchId)||{}).value||'').toLowerCase();
+  const mSel=($(o.monthId)||{}).value||'all';
+  let rows=o.data.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  let frows=(o.funds||[]).filter(f=>((f.notes||'')+' fund received admin').toLowerCase().includes(q));
+  if(mSel!=='all') frows=frows.filter(f=>String(f.fund_date||'').slice(0,7)===mSel);
+  const out=[...frows.map(f=>({type:'Fund Received',date:f.fund_date||'',category:'',amount:f.amount,notes:f.notes||''})),
+             ...rows.map(x=>({type:'Expense',date:x.entry_date||'',category:x.category||'',amount:x.amount,notes:x.notes||''}))]
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  csvDl(o.file+(mSel==='all'?'':'-'+mSel),out,['type','date','category','amount','notes']);
+}
+function csvPkr(){csvMonthlyExp({data:pkrExpData,funds:pkrFundData,searchId:'pkrSearch',monthId:'pkrMonth',file:'pkr-expenses'});}
+function csvRiyal(){csvMonthlyExp({data:riyalExpData,funds:riyalFundData,searchId:'riSearch',monthId:'riMonth',file:'riyal-expenses'});}
+function csvHaji(){csvMonthlyExp({data:hajiExpData,funds:hajiFundData,searchId:'hajiSearch',monthId:'hajiMonth',file:'haji-expenses'});}
+function csvE69(){csvMonthlyExp({data:e69ExpData,funds:e69FundData,searchId:'e69Search',monthId:'e69Month',file:'e69-expenses'});}
+function csvAlmeer(){
+  const q=(($('alSearch')||{}).value||'').toLowerCase();
+  const mSel=($('alMonth')||{}).value||'all';
+  let rows=almeerData.filter(x=>((x.category||'')+' '+(x.notes||'')).toLowerCase().includes(q));
+  if(mSel!=='all') rows=rows.filter(x=>String(x.entry_date||'').slice(0,7)===mSel);
+  csvDl('almeer-psx'+(mSel==='all'?'':'-'+mSel),rows,['entry_date','kind','category','amount','notes']);
+}
+function csvDividend(){
+  const q=(($('divSearch')||{}).value||'').toLowerCase();
+  const ySel=($('divYear')||{}).value||'all';
+  let rows=dividendData.filter(x=>((x.company||'')+' '+(x.person||'')+' '+(x.profile||'')+' '+(x.bank||'')+' '+(x.received_date||'')).toLowerCase().includes(q));
+  if(ySel!=='all') rows=rows.filter(x=>String(x.received_date||'').slice(0,4)===String(ySel));
+  csvDl('dividend'+(ySel==='all'?'':'-'+ySel),rows,['received_date','company','amount','person','profile','bank']);
+}
+function csvUsaInv(){
+  const q=(($('uiSearch')||{}).value||'').toLowerCase();
+  let rows=usaInvData.filter(x=>((x.exchange||'')+' '+(x.person||'')+' '+(x.notes||'')+' '+(x.invest_date||'')).toLowerCase().includes(q));
+  csvDl('usa-investments-totals',rows,['invest_date','exchange','amount','person','notes']);
+  let hrows=usaInvHist.filter(x=>((x.exchange||'')+' '+(x.person||'')+' '+(x.notes||'')+' '+(x.invest_date||'')).toLowerCase().includes(q));
+  if(hrows.length) setTimeout(()=>csvDl('usa-investments-history',hrows,['invest_date','exchange','amount','person','notes']),600);
+}
+function csvRemit(){
+  const rows=remitFiltered();
+  const mSel=($('rmMonth')||{}).value||'all';
+  const fSel=($('rmFY')||{}).value||'all';
+  const tag='remittances'+(mSel!=='all'?'-'+mSel:(fSel!=='all'?'-fy'+fSel:''));
+  csvDl(tag,rows,['entry_date','receiver','sender','purpose','bank','country','amount']);
+}
+function csvStocks(){
+  const person=(($('stPerson')||{}).value||'');
+  const q=(($('stSearch')||{}).value||'').toLowerCase();
+  let rows=stockData.filter(x=>((x.stock_name||'')+' '+(x.broker||'')+' '+(x.person||'')).toLowerCase().includes(q));
+  if(person) rows=rows.filter(x=>x.person===person);
+  const out=rows.map(x=>({buy_date:x.buy_date||'',stock:(x.stock_name||'').toUpperCase(),person:x.person||'',broker:x.broker||'',shares:x.shares,price:x.price,amount:Number(x.shares||0)*Number(x.price||0)}));
+  csvDl(stockMarket+'-stocks'+(person?'-'+person.toLowerCase().replace(/\s+/g,'-'):''),out,['buy_date','stock','person','broker','shares','price','amount']);
+}
 async function backup(){
   const d=new Date().toISOString().slice(0,10);
   const sets=[
@@ -621,7 +691,7 @@ async function pageExpenses(){
     <div id="expBanner"></div>
     <div class="toolbar">
       <input class="grow" id="expSearch" placeholder="Search firm or notes..." oninput="renderExp()">
-      ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfExpenses()">⬇ PDF</button>`:''}
+      ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfExpenses()">⬇ PDF</button><button class="btn ghost" onclick="csvExpenses()">⬇ CSV</button>`:''}
       <button class="btn" onclick="expModal()">+ Add Expense</button>
     </div>
     <div class="panel" style="padding:0"><div id="expTable"></div></div>`;
@@ -690,7 +760,7 @@ async function pagePayouts(){
       <select id="payStatus" style="max-width:160px" onchange="payFilter=this.value;renderPay()">
         <option value="all">All statuses</option><option>upcoming</option><option>pending</option><option>submitted</option>
         <option>paid</option></select>
-      ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfPayouts()">⬇ PDF</button>`:''}
+      ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfPayouts()">⬇ PDF</button><button class="btn ghost" onclick="csvPayouts()">⬇ CSV</button>`:''}
       <button class="btn" onclick="payModal()">+ Add Payout</button>
     </div>
     <div class="panel" style="padding:0"><div id="payTable"></div></div>`;
@@ -1273,7 +1343,7 @@ async function pagePkr(){
     <div class="toolbar">
       <input class="grow" id="pkrSearch" placeholder="Search category or notes..." oninput="renderPkr()">
       ${isAdmin?`<button class="btn gold" onclick="pkrFundModal()">\u{1F3E6} Add Fund (to Suh)</button>`:''}
-      ${isAdmin?`<button class="btn ghost" onclick="pdfPkr()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfPkr()">⬇ PDF</button><button class="btn ghost" onclick="csvPkr()">⬇ CSV</button>`:''}
       <button class="btn" onclick="pkrExpModal()">+ Add Expense</button>
     </div>
     <div class="panel" style="padding:0"><div id="pkrTable"></div></div>`;
@@ -1369,7 +1439,7 @@ async function pageHaji(){
     <div class="toolbar">
       <input class="grow" id="hajiSearch" placeholder="Search category or notes..." oninput="renderHaji()">
       ${isAdmin?`<button class="btn gold" onclick="hajiFundModal()">\u{1F3E6} Add Fund (to Haji Saqib)</button>`:''}
-      ${isAdmin?`<button class="btn ghost" onclick="pdfHaji()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfHaji()">⬇ PDF</button><button class="btn ghost" onclick="csvHaji()">⬇ CSV</button>`:''}
       <button class="btn" onclick="hajiExpModal()">+ Add Expense</button>
     </div>
     <div class="panel" style="padding:0"><div id="hajiTable"></div></div>`;
@@ -1465,7 +1535,7 @@ async function pageE69(){
     <div class="toolbar">
       <input class="grow" id="e69Search" placeholder="Search category or notes..." oninput="renderE69()">
       ${isAdmin?`<button class="btn gold" onclick="e69FundModal()">\u{1F3E6} Add Fund (to E69)</button>`:''}
-      ${isAdmin?`<button class="btn ghost" onclick="pdfE69()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfE69()">⬇ PDF</button><button class="btn ghost" onclick="csvE69()">⬇ CSV</button>`:''}
       <button class="btn" onclick="e69ExpModal()">+ Add Expense</button>
     </div>
     <div class="panel" style="padding:0"><div id="e69Table"></div></div>`;
@@ -1558,7 +1628,7 @@ async function pageDividend(){
       <select id="divYear" onchange="renderDividend()" style="max-width:140px"></select>
       <input class="grow" id="divSearch" placeholder="Search company, person, profile, bank, date..." oninput="renderDividend()">
       ${isAdmin?`<button class="btn gold" onclick="divPersonsModal()">👥 Persons</button>`:''}
-      ${isAdmin?`<button class="btn ghost" onclick="pdfDividend()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfDividend()">⬇ PDF</button><button class="btn ghost" onclick="csvDividend()">⬇ CSV</button>`:''}
       <button class="btn" onclick="divModal()">+ Add Dividend</button>
     </div>
     <div class="panel" style="padding:0"><div id="divTable"></div></div>`;
@@ -1715,7 +1785,7 @@ async function pageUsaInv(){
     </div>
     <div class="toolbar">
       <input class="grow" id="uiSearch" placeholder="Search exchange, person, date, notes..." oninput="renderUsaInv()">
-      ${isAdmin?`<button class="btn ghost" onclick="pdfUsaInv()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfUsaInv()">⬇ PDF</button><button class="btn ghost" onclick="csvUsaInv()">⬇ CSV</button>`:''}
       ${isAdmin?`<button class="btn" onclick="usaInvModal()">+ Add Investment</button>`:''}
     </div>
     <div class="panel" style="padding:0"><div id="uiTable"></div></div>
@@ -1835,7 +1905,7 @@ async function pageRemit(){
       <select id="rmFY" onchange="renderRemit()" style="max-width:230px"></select>
       <select id="rmMonth" onchange="renderRemit()" style="max-width:170px"></select>
       <input class="grow" id="rmSearch" placeholder="Search person, purpose, bank, country..." oninput="renderRemit()">
-      ${isAdmin?`<button class="btn ghost" onclick="pdfRemit()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfRemit()">⬇ PDF</button><button class="btn ghost" onclick="csvRemit()">⬇ CSV</button>`:''}
       <button class="btn" onclick="remitModal()">+ Add Remittance</button>
     </div>
     <div class="panel" style="padding:0"><div id="rmTable"></div></div>`;
@@ -1953,7 +2023,7 @@ async function pageRiyal(){
     <div class="toolbar">
       <input class="grow" id="riSearch" placeholder="Search category or notes..." oninput="renderRiyal()">
       ${isAdmin?`<button class="btn gold" onclick="riyalFundModal()">\u{1F3E6} Add Fund (to Ali)</button>`:''}
-      ${isAdmin?`<button class="btn ghost" onclick="pdfRiyal()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfRiyal()">⬇ PDF</button><button class="btn ghost" onclick="csvRiyal()">⬇ CSV</button>`:''}
       <button class="btn" onclick="riyalExpModal()">+ Add Expense</button>
     </div>
     <div class="panel" style="padding:0"><div id="riTable"></div></div>`;
@@ -2362,7 +2432,7 @@ async function stocksPage(mkt){
     <div class="toolbar">
       <select id="stPerson" onchange="renderStocks()" style="max-width:200px"><option value="">All persons</option>${STOCK_PERSONS.map(p=>`<option>${p}</option>`).join('')}</select>
       <input class="grow" id="stSearch" placeholder="Search stock, broker, person..." oninput="renderStocks()">
-      ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfStocks()">⬇ PDF</button>`:''}
+      ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfStocks()">⬇ PDF</button><button class="btn ghost" onclick="csvStocks()">⬇ CSV</button>`:''}
       <button class="btn" onclick="stockModal()">+ Add Stock</button>
     </div>
     <div class="panel"><h3>${cfg.emoji} Entries</h3><div id="stTable"></div></div>`;
@@ -2459,7 +2529,7 @@ async function pageAlmeer(){
       <div id="alMonthOut"></div></div>
     <div class="toolbar">
       <input class="grow" id="alSearch" placeholder="Search category or notes..." oninput="renderAlmeer()">
-      ${isAdmin?`<button class="btn ghost" onclick="pdfAlmeer()">⬇ PDF</button>`:''}
+      ${isAdmin?`<button class="btn ghost" onclick="pdfAlmeer()">⬇ PDF</button><button class="btn ghost" onclick="csvAlmeer()">⬇ CSV</button>`:''}
       <button class="btn" onclick="almeerModal(null,'earning')">+ Add Earning</button>
       <button class="btn danger" onclick="almeerModal(null,'expense')">+ Add Expense</button>
     </div>
