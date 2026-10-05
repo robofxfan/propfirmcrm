@@ -176,6 +176,20 @@ tr:hover td{background:var(--panel2)}
 const sb = (SUPABASE_URL.startsWith('http'))
   ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 let ME = null;            // profile {id,email,full_name,role,active}
+let USERMAP = {};         // admin-only: user id -> username (entry attribution)
+function entryMeta(x, dateKey){
+  if(!ME || ME.role!=='admin' || !x) return '';
+  const who = USERMAP[x.created_by] || '';
+  let s = who ? ('👤 '+esc(who)) : '';
+  const d = String(x[dateKey]||'').slice(0,10);
+  const c = String(x.created_at||'').slice(0,10);
+  if(d && c && d!==c) s += (s?' · ':'')+'⏱ asal entry '+c+' ko hui (likhi date: '+d+')';
+  if(x.updated_at && x.created_at){
+    const u = String(x.updated_at).slice(0,10);
+    if(u!==c) s += (s?' · ':'')+'✏️ edit: '+u;
+  }
+  return s ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap">${s}</div>` : '';
+}
 let authMode = 'login';
 
 const $ = id => document.getElementById(id);
@@ -541,6 +555,10 @@ async function boot(){
   updateThemeBtn(); updateHideBtn();
   if($('hideBtn')) $('hideBtn').style.display = ME.role==='admin' ? 'block' : 'none';
   checkForcedLogout(); setInterval(checkForcedLogout, 60000);
+  if(ME.role==='admin'){
+    try{const {data:ps}=await sb.from('profiles').select('id,email');
+      USERMAP={}; (ps||[]).forEach(p=>{USERMAP[p.id]=(p.email||'').split('@')[0];});}catch(e){}
+  }
   const allowed = buildNav();
   if(ME.role==='pending' || allowed.length===0){
     $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
@@ -626,7 +644,7 @@ function renderExp(){
   $('expTable').innerHTML = `<table><thead><tr>
     <th>Date</th><th>Prop Firm</th><th>Account</th><th>Cost</th><th>Notes</th><th></th></tr></thead><tbody>
     ${rows.map(e=>`<tr>
-      <td>${e.spent_on}</td><td>${esc(e.prop_firm)}</td><td>${esc(e.account_size||'')}</td>
+      <td>${e.spent_on}${entryMeta(e,'spent_on')}</td><td>${esc(e.prop_firm)}</td><td>${esc(e.account_size||'')}</td>
       <td>${money(e.cost)}</td><td>${esc(e.notes||'')}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn ghost sm" onclick='expModal(${JSON.stringify(e)})'>Edit</button>
@@ -690,7 +708,7 @@ function renderPay(){
   $('payTable').innerHTML=`<table><thead><tr>
     <th>Date</th><th>Prop Firm</th><th>Account</th><th>For</th><th>Amount</th><th>Your Net</th><th>Status</th><th>Proof</th><th></th></tr></thead><tbody>
     ${rows.map(p=>`<tr>
-      <td>${p.payout_date}</td><td>${esc(p.prop_firm)}</td><td>${esc(p.account_size||'')}</td><td>${esc(p.payout_for||'-')}</td>
+      <td>${p.payout_date}${entryMeta(p,'payout_date')}</td><td>${esc(p.prop_firm)}</td><td>${esc(p.account_size||'')}</td><td>${esc(p.payout_for||'-')}</td>
       <td>${money(p.amount)}${p.split_pct!=null?` <span style="color:var(--muted);font-size:11px">(${p.split_pct}%)</span>`:''}</td>
       <td style="color:var(--green2)">${money(pn(p))}</td>
       <td><span class="pill ${p.status}">${p.status}</span></td>
@@ -1177,21 +1195,33 @@ function pkrMonths(){
   return out;
 }
 /* ---- shared: funds-from-admin table (per-user sections) ---- */
+let FUND_SHOW_ALL={};
+window.__fundArgs={};
+function fundToggleAll(elId){
+  FUND_SHOW_ALL[elId]=!FUND_SHOW_ALL[elId];
+  const a=window.__fundArgs[elId];
+  if(a) renderFundsTable(a.elId,a.funds,a.mSel,a.cur,a.isAdmin,a.table,a.refresh);
+}
 function renderFundsTable(elId, funds, mSel, cur, isAdmin, table, refresh){
   if(!$(elId)) return;
-  let rows=funds||[];
-  if(mSel!=='all') rows=rows.filter(x=>String(x.fund_date||'').slice(0,7)===mSel);
+  window.__fundArgs[elId]={elId,funds,mSel,cur,isAdmin,table,refresh};
+  let allRows=funds||[];
+  if(mSel!=='all') allRows=allRows.filter(x=>String(x.fund_date||'').slice(0,7)===mSel);
+  const showAll=!!FUND_SHOW_ALL[elId];
+  const rows=showAll?allRows:allRows.slice(0,5);
+  const moreBtn=allRows.length>5?`<div style="padding:10px;text-align:center;border-top:1px solid var(--border)">
+    <button class="btn ghost sm" onclick="fundToggleAll('${elId}')">${showAll?'🔼 Kam dikhayen (sirf latest 5)':'🔽 Purani entries dekhein ('+(allRows.length-5)+' aur)'}</button></div>`:'';
   $(elId).innerHTML = rows.length?`<table><thead><tr>
     <th>Date</th><th>Amount</th><th>Remarks (maqsad)</th><th></th></tr></thead><tbody>
     ${rows.map(x=>`<tr>
-      <td>${x.fund_date||''}</td>
+      <td>${x.fund_date||''}${entryMeta(x,'fund_date')}</td>
       <td style="color:var(--green2);font-weight:600">${cur(x.amount)}</td>
       <td>${esc(x.notes||'')||'<span style="color:var(--muted)">-</span>'}</td>
       <td style="text-align:right;white-space:nowrap">${isAdmin?`<button class="btn danger sm" onclick="delRow('${table}','${x.id}',${refresh})">Del</button>`:''}</td>
     </tr>`).join('')}
-    </tbody><tfoot><tr><td style="font-weight:700">Total received${mSel==='all'?'':' ('+mSel+')'}</td>
-      <td style="font-weight:700;color:var(--green2)">${cur(rows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
-      <td colspan="2"></td></tr></tfoot></table>`:'<div class="empty">Abhi koi fund entry nahi.</div>';
+    </tbody><tfoot><tr><td style="font-weight:700">Total received${mSel==='all'?'':' ('+mSel+')'}${showAll||allRows.length<=5?'':' — sab '+allRows.length+' entries ka'}</td>
+      <td style="font-weight:700;color:var(--green2)">${cur(allRows.reduce((s,x)=>s+Number(x.amount||0),0))}</td>
+      <td colspan="2"></td></tr></tfoot></table>`+moreBtn:'<div class="empty">Abhi koi fund entry nahi.</div>';
 }
 
 /* ---- shared: date-sorted ledger (expenses + funds mixed) ---- */
@@ -1207,13 +1237,13 @@ function ledgerTable(elId, expRows, fundRows, cur, isAdmin, expTable, fundTable,
     <th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
     ${merged.map(r=>{
       if(r.t==='f'){const f=r.x;return `<tr style="background:rgba(22,163,74,.08)">
-        <td>${f.fund_date||''}</td>
+        <td>${f.fund_date||''}${entryMeta(f,'fund_date')}</td>
         <td style="color:var(--green2);font-weight:700">💰 Fund Received</td>
         <td style="color:var(--green2);font-weight:700">+ ${cur(f.amount)}</td>
         <td>${esc(f.notes||'')}</td>
         <td style="text-align:right;white-space:nowrap">${isAdmin?`<button class="btn danger sm" onclick="delRow('${fundTable}','${f.id}',${refresh})">Del</button>`:''}</td></tr>`;}
       const x=r.x;return `<tr>
-        <td>${x.entry_date||''}</td><td>${esc(x.category||'')}</td>
+        <td>${x.entry_date||''}${entryMeta(x,'entry_date')}</td><td>${esc(x.category||'')}</td>
         <td style="color:#fca5a5;font-weight:600">− ${cur(x.amount)}</td>
         <td>${esc(x.notes||'')}</td>
         <td style="text-align:right;white-space:nowrap">
@@ -1554,7 +1584,7 @@ function renderDividend(){
     const y=String(x.received_date||'').slice(0,4);
     if(y!==curYear){curYear=y;html+=`<tr><td colspan="7" style="font-weight:800;color:var(--gold2);background:var(--panel2)">📅 ${y}</td></tr>`;}
     html+=`<tr>
-      <td>${x.received_date||''}</td><td style="font-weight:600">${esc(x.company||'')}</td>
+      <td>${x.received_date||''}${entryMeta(x,'received_date')}</td><td style="font-weight:600">${esc(x.company||'')}</td>
       <td style="color:var(--green2);font-weight:700">${pkr(x.amount)}</td>
       <td>${esc(x.person||'')}</td><td>${esc(x.profile||'')}</td><td>${esc(x.bank||'')}</td>
       <td style="text-align:right;white-space:nowrap">
@@ -1728,7 +1758,7 @@ function renderUsaInv(){
   $('uiHist').innerHTML=hrows.length?`<table><thead><tr>
     <th>Date</th><th>Exchange</th><th>Amount</th><th>Person</th><th>Notes</th></tr></thead><tbody>
     ${hrows.map(x=>`<tr>
-      <td>${x.invest_date||''}</td><td style="font-weight:600">${esc(x.exchange||'')}</td>
+      <td>${x.invest_date||''}${entryMeta(x,'invest_date')}</td><td style="font-weight:600">${esc(x.exchange||'')}</td>
       <td style="color:var(--green2);font-weight:700">+ ${money(x.amount)}</td>
       <td>${esc(x.person||'')}</td><td>${esc(x.notes||'')}</td></tr>`).join('')}
     </tbody><tfoot><tr><td style="font-weight:700">Total (shown)</td><td></td>
@@ -1838,7 +1868,7 @@ function renderRemit(){
   $('rmTable').innerHTML=rows.length?`<table><thead><tr>
     <th>Date</th><th>Receiver</th><th>Sender</th><th>Purpose</th><th>Bank</th><th>Country</th><th>Amount</th><th></th></tr></thead><tbody>
     ${rows.map(x=>`<tr>
-      <td>${x.entry_date||''}</td><td style="font-weight:600">${esc(x.receiver||'')}</td>
+      <td>${x.entry_date||''}${entryMeta(x,'entry_date')}</td><td style="font-weight:600">${esc(x.receiver||'')}</td>
       <td>${esc(x.sender||'')}</td><td>${esc(x.purpose||'')}</td>
       <td>${esc(x.bank||'')}</td><td>${esc(x.country||'')}</td>
       <td style="color:var(--green2);font-weight:700">${pkr(x.amount)}</td>
@@ -2350,7 +2380,7 @@ function renderStocks(){
   $('stTable').innerHTML=rows.length?`<table><thead><tr>
     <th>Date</th><th>Stock</th><th>Person</th><th>Broker</th>${isAdmin?'<th>No of Shares</th><th>Price</th><th>Amount</th>':''}<th></th></tr></thead><tbody>
     ${rows.map(x=>`<tr>
-      <td>${esc(x.buy_date||'')}</td>
+      <td>${esc(x.buy_date||'')}${entryMeta(x,'buy_date')}</td>
       <td style="font-weight:600">${isAdmin?`<a onclick="stockHistory(decodeURIComponent('${encodeURIComponent(x.stock_name||'')}'))" style="cursor:pointer;color:var(--green2);text-decoration:underline">${esc(x.stock_name||'')}</a>`:esc(x.stock_name||'')}</td>
       <td>${esc(x.person||'')}</td><td>${esc(x.broker||'')}</td>
       ${isAdmin?`<td style="font-weight:600">${Number(x.shares||0)}</td><td>${cfg.cur(Number(x.price||0))}</td><td style="color:var(--gold2);font-weight:700">${cfg.cur((Number(x.shares)||0)*(Number(x.price)||0))}</td>`:''}
@@ -2481,7 +2511,7 @@ function renderAlmeer(){
   $('alTable').innerHTML = rows.length?`<table><thead><tr>
     <th>Date</th><th>Type</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead><tbody>
     ${rows.map(x=>{const isE=x.kind==='earning';return `<tr>
-      <td>${x.entry_date||''}</td>
+      <td>${x.entry_date||''}${entryMeta(x,'entry_date')}</td>
       <td><span class="pill ${isE?'paid':'pending'}" style="${isE?'':'background:#3a0d0d;color:#fca5a5'}">${isE?'Earning':'Expense'}</span></td>
       <td>${esc(x.category||'')}</td>
       <td style="color:${isE?'var(--green2)':'#fca5a5'};font-weight:700">${isE?'+':'−'} ${pkr(x.amount)}</td>
