@@ -15,6 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="sim-packages.js?v=1"></script>
 <style>
 :root{
   --bg:#0a0f0d; --panel:#0f1714; --panel2:#13201b; --border:#1f3329;
@@ -597,11 +598,21 @@ const NAV = [
   {k:'reports',  label:'Performance',ic:'📈',roles:['admin']},
   {k:'users',    label:'Users',    ic:'👥',roles:['admin']},
   {k:'activity', label:'Activity', ic:'🕑',roles:['admin']},
+  {k:'simdash',     label:'SIM Dashboard',    ic:'📶',roles:['admin','sim'],sec:'SIM Package Management'},
+  {k:'simall',      label:'All SIMs',         ic:'📱',roles:['admin','sim'],sec:'SIM Package Management'},
+  {k:'simupcoming', label:'Upcoming Expiries',ic:'📅',roles:['admin','sim'],sec:'SIM Package Management'},
+  {k:'simrenewals', label:'Renewal History',  ic:'🗂️',roles:['admin','sim'],sec:'SIM Package Management'},
+  {k:'simexpenses', label:'SIM Expenses',     ic:'💸',roles:['admin','sim'],sec:'SIM Package Management'},
+  {k:'simsettings', label:'SIM Settings',     ic:'⚙️',roles:['admin','sim'],sec:'SIM Package Management'},
 ];
 function buildNav(){
   const allowed = NAV.filter(n=>n.roles.includes(ME.role));
-  $('nav').innerHTML = allowed.map(n=>
-    `<a data-k="${n.k}" onclick="go('${n.k}')"><span class="ic">${n.ic}</span>${n.label}</a>`).join('');
+  let lastSec='';
+  $('nav').innerHTML = allowed.map(n=>{
+    const head = (n.sec && n.sec!==lastSec) ? `<div class="nav-sec">${n.sec}</div>` : '';
+    lastSec = n.sec||'';
+    return head+`<a data-k="${n.k}" onclick="go('${n.k}')"><span class="ic">${n.ic}</span>${n.label}</a>`;}).join('');
+  if(typeof simNavBadge==='function') setTimeout(simNavBadge,0);
   return allowed;
 }
 
@@ -611,7 +622,8 @@ function go(k){
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.k===k));
   document.querySelector('.sidebar').classList.remove('open');
   ({dashboard:pageDashboard,alerts:pageAlerts,expenses:pageExpenses,funds:pageFunds,payouts:pagePayouts,
-    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend,usainv:pageUsaInv,remit:pageRemit}[k])();
+    reports:pageReports,users:pageUsers,activity:pageActivity,equity:pageEquity,pkrexp:pagePkr,riyalexp:pageRiyal,readybuy:pageBuy,psxstocks:pagePsxStocks,usastocks:pageUsaStocks,almeerpsx:pageAlmeer,hajiexp:pageHaji,e69exp:pageE69,dividend:pageDividend,usainv:pageUsaInv,remit:pageRemit,
+    simdash:()=>simPageDashboard(),simall:()=>simPageAll(),simupcoming:()=>simPageUpcoming(),simrenewals:()=>simPageRenewals(),simexpenses:()=>simPageExpenses(),simsettings:()=>simPageSettings()}[k])();
 }
 
 async function boot(){
@@ -948,7 +960,7 @@ async function pageUsers(){
       <td>${u.active?'<span class="pill paid">active</span>':'<span class="pill pending">disabled</span>'}</td>
       <td style="white-space:nowrap">
         <select ${isAdm?'disabled title="Admin role is locked"':''} onchange="setRole('${u.id}',this.value)" style="width:auto;display:inline-block;padding:5px 8px">
-          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend','usainvest','remit'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
+          ${['pending','admin','expense','payout','equity','pkr','riyal','futures','hedge','stocks','almeer','haji','e69','dividend','usainvest','remit','sim'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}
         </select>
         ${isAdm?'':`<button class="btn ghost sm" onclick="toggleActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}
         <button class="btn gold sm" onclick="resetPw('${u.id}','${un}','${u.role}')">${isAdm?'Reset via email':'Reset PW'}</button>
@@ -1001,7 +1013,7 @@ function newUserModal(){
     <div class="field"><label>Password * (min 6 chars — default: same as username)</label>
       <input id="nu_pw" oninput="this.dataset.touched='1'"></div>
     <div class="field"><label>Role *</label><select id="nu_role">
-      ${['almeer','haji','e69','dividend','usainvest','remit','expense','payout','equity','pkr','riyal','futures','hedge','stocks','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      ${['almeer','haji','e69','dividend','usainvest','remit','expense','payout','equity','pkr','riyal','futures','hedge','stocks','sim','pending'].map(r=>`<option>${r}</option>`).join('')}</select></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px">⚠️ Username/password create hote hi sirf EK BAAR dikhaya jayega — note kar lein.</div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
