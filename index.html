@@ -253,7 +253,7 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'
 function authMsg(t,k){ $('authMsg').innerHTML = t?`<div class="msg ${k||'err'}">${esc(t)}</div>`:''; }
 
 /* ---- prop firm + account size option lists ---- */
-const FIRMS=['FP','FTMO','FTM','The 5%ers','Tradeify','TradeifyFX','BlueGuardian','Fintokei','AlphaCapital','Aqua Funded','TDY','Office / Other'];
+const FIRMS=['FP','FTMO','FTM','The 5%ers','TradeifyFX','BlueGuardian','Fintokei','AlphaCapital','Aqua Funded','TDY','Office / Other'];
 const NO_TRADER_FIRMS=['Office / Other'];
 const SIZES=['100K','150K','200K','300K','400K'];
 const EQ_FIRMS=['FP','FTMO','FTM','ACG','BG','Aqua','Fintokei'];
@@ -305,12 +305,21 @@ function selField(id,label,opts,cur){
 function traderOpts(cur){ const o=[...TRADERS]; if(cur && !o.includes(cur)) o.push(cur); return o.sort((a,b)=>a.localeCompare(b)); }
 function traderField(id,cur,label){
   return `<label>${esc(label||'Trader *')}</label>
+    <input id="${id}_q" placeholder="\u{1F50D} Search trader..." autocomplete="off" style="margin-bottom:6px" oninput="trFilter('${id}')">
     <div style="display:flex;gap:6px"><select id="${id}" style="flex:1"><option value="">Select trader...</option>${traderOpts(cur).map(o=>`<option value="${esc(o)}" ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>
     <button type="button" class="btn ghost sm" style="white-space:nowrap" onclick="trAddShow('${id}')">\u2795 Add Trader</button></div>
     <div id="${id}_add" style="display:none;margin-top:6px;gap:6px"><input id="${id}_new" placeholder="Naye trader ka naam" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();trAddSave('${id}');}">
     <button type="button" class="btn sm" onclick="trAddSave('${id}')">Save</button><button type="button" class="btn ghost sm" onclick="trAddShow('${id}',false)">\u2715</button></div>`;
 }
-function trAddShow(id,on){ const w=$(id+'_add'); if(!w) return; const show=on!==false; w.style.display=show?'flex':'none'; if(show){ const i=$(id+'_new'); i.value=''; i.focus(); } }
+function trFilter(id){
+  const sel=$(id); if(!sel) return;
+  const q=(($(id+'_q')||{}).value||'').toLowerCase().trim();
+  const cur=sel.value; const list=traderOpts(cur).filter(t=>!q||t.toLowerCase().includes(q));
+  const head=!q?'Select trader...':(list.length?(list.length+' trader mile'):'Koi trader nahi mila \u2014 \u2795 Add Trader dabayein');
+  sel.innerHTML='<option value="">'+esc(head)+'</option>'+list.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('');
+  if(list.includes(cur)) sel.value=cur; else if(q && list.length) sel.value=list[0]; else sel.value='';
+}
+function trAddShow(id,on){ const w=$(id+'_add'); if(!w) return; const show=on!==false; w.style.display=show?'flex':'none'; if(show){ const i=$(id+'_new'); i.value=(($(id+'_q')||{}).value||'').trim(); i.focus(); } }
 async function trAddSave(id){
   const name=(($(id+'_new')||{}).value||'').replace(/\s+/g,' ').trim();
   if(!name){ alert('Trader ka naam likhein'); return; }
@@ -325,7 +334,8 @@ async function trAddSave(id){
   }
   const sel=$(id);
   if(sel && ![...sel.options].some(o=>o.value===final)){ const o=document.createElement('option'); o.value=final; o.textContent=final; sel.appendChild(o); }
-  if(sel) sel.value=final;
+  const qb=$(id+'_q'); if(qb){ qb.value=''; trFilter(id); }
+  if(sel){ if(![...sel.options].some(o=>o.value===final)){ const o=document.createElement('option'); o.value=final; o.textContent=final; sel.appendChild(o); } sel.value=final; }
   trAddShow(id,false);
 }
 function pickVal(id){
