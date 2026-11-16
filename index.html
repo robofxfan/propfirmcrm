@@ -125,6 +125,20 @@ tr:hover td{background:var(--panel2)}
     background:var(--panel);border:1px solid var(--border);border-radius:8px;
     width:42px;height:42px;align-items:center;justify-content:center;color:var(--text);font-size:20px;cursor:pointer}
 }
+
+/* entry details (compact, click to open) */
+td:has(> .em-hit){position:relative;cursor:pointer}
+.em-hit{display:inline-block;margin-left:5px;vertical-align:middle;line-height:1}
+.em-hit::after{content:'';position:absolute;inset:0}
+.em-hit i{font-style:normal;font-size:10px;opacity:.45}
+.em-hit.late i{opacity:1;font-size:11px}
+.em-hit.edit i{opacity:.8}
+td:has(> .em-hit.late){box-shadow:inset 3px 0 0 var(--gold)}
+#emPop{position:fixed;z-index:80;background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:12px;min-width:210px;max-width:290px}
+#emPop .em-r{display:flex;justify-content:space-between;gap:14px;padding:4px 0;border-bottom:1px dashed var(--border)}
+#emPop .em-r:last-child{border-bottom:none}
+#emPop .em-r span:first-child{color:var(--muted);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -181,16 +195,41 @@ let USERMAP = {};         // admin-only: user id -> username (entry attribution)
 function entryMeta(x, dateKey){
   if(!ME || ME.role!=='admin' || !x) return '';
   const who = USERMAP[x.created_by] || '';
-  let s = who ? ('👤 '+esc(who)) : '';
   const d = String(x[dateKey]||'').slice(0,10);
   const c = String(x.created_at||'').slice(0,10);
-  if(d && c && d!==c) s += (s?' · ':'')+'⏱ asal entry '+c+' ko hui (likhi date: '+d+')';
-  if(x.updated_at && x.created_at){
-    const u = String(x.updated_at).slice(0,10);
-    if(u!==c) s += (s?' · ':'')+'✏️ edit: '+u;
-  }
-  return s ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap">${s}</div>` : '';
+  const late = !!(d && c && d!==c);
+  const u = (x.updated_at && x.created_at) ? String(x.updated_at).slice(0,10) : '';
+  const edited = !!(u && u!==c);
+  if(!who && !late && !edited) return '';
+  const info = {who:who, d:d, c:c, u:edited?u:'', late:late};
+  const cls = late ? 'late' : (edited ? 'edit' : '');
+  const ic = late ? '\u23F1' : (edited ? '\u270F\uFE0F' : '\u24D8');
+  return '<span class="em-hit '+cls+'" data-em="'+esc(JSON.stringify(info))+'" onclick="emShow(event,this)" title="Entry details"><i>'+ic+'</i></span>';
 }
+function emDays(a,b){ const t=(new Date(b)-new Date(a))/86400000; return isNaN(t)?0:Math.round(t); }
+function emClose(){ const p=document.getElementById('emPop'); if(p) p.remove(); }
+function emShow(ev,el){
+  ev.stopPropagation();
+  const open=document.getElementById('emPop'); if(open && open._src===el){ emClose(); return; }
+  emClose();
+  let i={}; try{ i=JSON.parse(el.dataset.em||'{}'); }catch(e){}
+  const rows=[];
+  if(i.who) rows.push(['\u{1F464} Entry ki','<b>'+esc(i.who)+'</b>']);
+  if(i.d)   rows.push(['\u{1F4C5} Likhi date',esc(i.d)]);
+  if(i.c)   rows.push(['\u23F1 Asal entry', i.late ? '<b style="color:var(--gold2)">'+esc(i.c)+'</b>' : esc(i.c)]);
+  if(i.late && i.d && i.c){ const n=emDays(i.d,i.c); rows.push(['\u26A0\uFE0F Farq', n>0 ? n+' din baad add hui' : Math.abs(n)+' din pehle add hui']); }
+  if(i.u)   rows.push(['\u270F\uFE0F Last edit',esc(i.u)]);
+  const p=document.createElement('div'); p.id='emPop'; p._src=el;
+  p.innerHTML=rows.map(r=>'<div class="em-r"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>').join('');
+  document.body.appendChild(p);
+  const r=el.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(Math.max(8,r.left), window.innerWidth-pw-8);
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8,r.top-ph-6);
+  p.style.left=left+'px'; p.style.top=top+'px';
+}
+document.addEventListener('click',e=>{ if(!e.target.closest||!e.target.closest('#emPop')) emClose(); });
+window.addEventListener('scroll',emClose,true);
+window.addEventListener('resize',emClose);
 let authMode = 'login';
 
 const $ = id => document.getElementById(id);
@@ -214,7 +253,7 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'
 function authMsg(t,k){ $('authMsg').innerHTML = t?`<div class="msg ${k||'err'}">${esc(t)}</div>`:''; }
 
 /* ---- prop firm + account size option lists ---- */
-const FIRMS=['Aqua Funded','FTMO','FP','The 5%ers','BlueGuardian','FTM','AlphaCapital'];
+const FIRMS=['Aqua Funded','FTMO','FP','The 5%ers','BlueGuardian','FTM','AlphaCapital','TradeifyFX'];
 const SIZES=['100K','150K','200K','300K','400K'];
 const EQ_FIRMS=['FP','FTMO','FTM','ACG','BG','Aqua','Fintokei'];
 const EQ_SIZES=['100K','125K','150K','200K','300K','400K'];
@@ -877,6 +916,12 @@ async function pageReports(){
       <div class="field" style="max-width:260px"><label>Select month</label>
         <select id="monthSel" onchange="renderMonth()"></select></div>
       <div id="monthOut"></div></div>
+    <div class="panel"><h3>\u{1F3E2} Firm-wise Progress</h3>
+      <div class="row"><div class="field" style="flex:1;min-width:180px;max-width:260px"><label>Select firm</label>
+        <select id="firmSel" onchange="renderFirm()"></select></div>
+        <div class="field" style="flex:1;min-width:180px;max-width:260px"><label>Period</label>
+        <select id="firmMonth" onchange="renderFirm()"></select></div></div>
+      <div id="firmOut"></div></div>
     <div class="panel"><h3>By Prop Firm (for the selected period)</h3><div id="repTable"></div></div>
     <div style="margin-top:6px"><button class="btn" onclick="backup()">⬇ Download FULL Backup (all data, CSV)</button></div>`;
   $('perfTabs').innerHTML=PERF_RANGES.map(([d,l])=>`<button class="btn ghost" data-d="${d}" onclick="setPerf(${d},this)">${l}</button>`).join('');
@@ -886,6 +931,10 @@ async function pageReports(){
   const months=buildMonthList(e,p);
   $('monthSel').innerHTML=months.map((m,i)=>`<option value="${m.v}" ${i===0?'selected':''}>${m.l}</option>`).join('');
   renderMonth();
+  const fl=firmList(e,p);
+  $('firmSel').innerHTML=fl.length?fl.map(f=>`<option value="${esc(f.k)}">${esc(f.l)}</option>`).join(''):'<option value="">No firms yet</option>';
+  $('firmMonth').innerHTML='<option value="all">All time</option>'+months.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  renderFirm();
   setPerf(30, document.querySelector('#perfTabs button[data-d="30"]'));
 }
 function buildMonthList(e,p){
@@ -896,6 +945,37 @@ function buildMonthList(e,p){
   const arr=[...set].sort().reverse();
   const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
   return arr.map(v=>{const p2=v.split('-'); return {v,l:MN[Number(p2[1])-1]+' '+p2[0]};});
+}
+function firmKey(f){ return String(f||'').trim().toLowerCase(); }
+function firmList(e,p){
+  const m={};
+  [...e.map(x=>x.prop_firm),...p.map(x=>x.prop_firm)].forEach(f=>{const k=firmKey(f); if(k && !m[k]) m[k]=String(f).trim();});
+  return Object.keys(m).sort().map(k=>({k,l:m[k]}));
+}
+function renderFirm(){
+  const {e,p}=window._rep; const fk=($('firmSel')||{}).value; const per=($('firmMonth')||{}).value||'all';
+  if(!fk){ $('firmOut').innerHTML='<div class="empty">No data yet.</div>'; return; }
+  const pn=x=>Number(x.net_amount!=null?x.net_amount:x.amount);
+  const inP=d=>per==='all' || String(d||'').slice(0,7)===per;
+  const fe=e.filter(x=>firmKey(x.prop_firm)===fk), fp=p.filter(x=>firmKey(x.prop_firm)===fk);
+  const exp=fe.filter(x=>inP(x.spent_on));
+  const paid=fp.filter(x=>x.status==='paid' && inP(x.payout_date));
+  const pend=fp.filter(x=>x.status!=='paid' && inP(x.payout_date));
+  const te=exp.reduce((s,x)=>s+Number(x.cost||0),0), tp=paid.reduce((s,x)=>s+pn(x),0), tpe=pend.reduce((s,x)=>s+pn(x),0);
+  const net=tp-te, roi=te>0?(net/te*100):0;
+  let html=`<div class="cards">${card('Buying (expense)',money(te),'r')}${card('Payouts (paid)',money(tp),'g')}${card('Net Profit',money(net),net>=0?'g':'r')}${card('ROI',roi.toFixed(1)+'%',roi>=0?'gd':'r')}${card('Pending payouts',money(tpe),'gd')}</div>
+    <div style="color:var(--muted);font-size:12px;margin:-10px 0 12px">${exp.length} account(s) bought · ${paid.length} paid payout(s) · ${pend.length} pending</div>`;
+  // month-wise breakdown for this firm
+  const mm={};
+  fe.forEach(x=>{const k=String(x.spent_on||'').slice(0,7); if(!k)return; (mm[k]=mm[k]||{n:0,e:0,c:0,p:0}); mm[k].n++; mm[k].e+=Number(x.cost||0);});
+  fp.filter(x=>x.status==='paid').forEach(x=>{const k=String(x.payout_date||'').slice(0,7); if(!k)return; (mm[k]=mm[k]||{n:0,e:0,c:0,p:0}); mm[k].c++; mm[k].p+=pn(x);});
+  let keys=Object.keys(mm).sort().reverse(); if(per!=='all') keys=keys.filter(k=>k===per);
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ml=k=>{const a=k.split('-'); return (MN[Number(a[1])-1]||a[1])+' '+a[0];};
+  html += keys.length?`<div style="overflow-x:auto"><table><thead><tr><th>Month</th><th>Accounts bought</th><th>Buying</th><th>Payouts</th><th>Paid payouts</th><th>Net</th></tr></thead><tbody>
+    ${keys.map(k=>{const r=mm[k], n=r.p-r.e; return `<tr><td>${ml(k)}</td><td>${r.n}</td><td>${money(r.e)}</td><td>${r.c}</td><td style="color:var(--green2)">${money(r.p)}</td><td style="color:${n>=0?'var(--green2)':'#fca5a5'};font-weight:700">${money(n)}</td></tr>`;}).join('')}
+    </tbody></table></div>`:'<div class="empty">Is period mein is firm ka koi data nahi.</div>';
+  $('firmOut').innerHTML=html;
 }
 function renderMonth(){
   const {e,p}=window._rep; const m=($('monthSel')||{}).value; if(!m)return;
