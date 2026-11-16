@@ -253,7 +253,8 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'
 function authMsg(t,k){ $('authMsg').innerHTML = t?`<div class="msg ${k||'err'}">${esc(t)}</div>`:''; }
 
 /* ---- prop firm + account size option lists ---- */
-const FIRMS=['Aqua Funded','FTMO','FP','The 5%ers','BlueGuardian','FTM','AlphaCapital','TradeifyFX'];
+const FIRMS=['FP','FTMO','FTM','The 5%ers','Tradeify','TradeifyFX','BlueGuardian','Fintokei','AlphaCapital','Aqua Funded','TDY','Office / Other'];
+const NO_TRADER_FIRMS=['Office / Other'];
 const SIZES=['100K','150K','200K','300K','400K'];
 const EQ_FIRMS=['FP','FTMO','FTM','ACG','BG','Aqua','Fintokei'];
 const EQ_SIZES=['100K','125K','150K','200K','300K','400K'];
@@ -288,6 +289,44 @@ function pickField(id,label,opts,cur){
       <option value="__other__" ${cur&&!inList?'selected':''}>Other...</option>
     </select>
     <input id="${id}_oth" placeholder="Type ${esc(label)}" style="margin-top:6px;display:${cur&&!inList?'block':'none'}" value="${cur&&!inList?esc(cur):''}">`;
+}
+/* ---- traders (dropdown + add) ---- */
+let TRADERS=[];
+async function loadTraders(){ try{ const {data}=await sb.from('traders').select('name,active').order('name'); TRADERS=(data||[]).filter(t=>t.active!==false).map(t=>t.name); }catch(e){} return TRADERS; }
+function firmOptions(cur){
+  const set=[...FIRMS];
+  [].concat(typeof expData!=='undefined'?expData:[], typeof payData!=='undefined'?payData:[]).forEach(x=>{ if(x&&x.prop_firm && !set.includes(x.prop_firm)) set.push(x.prop_firm); });
+  if(cur && !set.includes(cur)) set.push(cur);
+  return set;
+}
+function selField(id,label,opts,cur){
+  return `<label>${esc(label)}</label><select id="${id}"><option value="">Select...</option>${opts.map(o=>`<option value="${esc(o)}" ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+}
+function traderOpts(cur){ const o=[...TRADERS]; if(cur && !o.includes(cur)) o.push(cur); return o.sort((a,b)=>a.localeCompare(b)); }
+function traderField(id,cur,label){
+  return `<label>${esc(label||'Trader *')}</label>
+    <div style="display:flex;gap:6px"><select id="${id}" style="flex:1"><option value="">Select trader...</option>${traderOpts(cur).map(o=>`<option value="${esc(o)}" ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>
+    <button type="button" class="btn ghost sm" style="white-space:nowrap" onclick="trAddShow('${id}')">\u2795 Add Trader</button></div>
+    <div id="${id}_add" style="display:none;margin-top:6px;gap:6px"><input id="${id}_new" placeholder="Naye trader ka naam" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();trAddSave('${id}');}">
+    <button type="button" class="btn sm" onclick="trAddSave('${id}')">Save</button><button type="button" class="btn ghost sm" onclick="trAddShow('${id}',false)">\u2715</button></div>`;
+}
+function trAddShow(id,on){ const w=$(id+'_add'); if(!w) return; const show=on!==false; w.style.display=show?'flex':'none'; if(show){ const i=$(id+'_new'); i.value=''; i.focus(); } }
+async function trAddSave(id){
+  const name=(($(id+'_new')||{}).value||'').replace(/\s+/g,' ').trim();
+  if(!name){ alert('Trader ka naam likhein'); return; }
+  let final=TRADERS.find(t=>t.toLowerCase()===name.toLowerCase());
+  if(!final){
+    const {error}=await sb.from('traders').insert({name});
+    if(error && !/duplicate|unique/i.test(error.message)){ alert('Trader add nahi hua: '+error.message); return; }
+    await loadTraders();
+    final=TRADERS.find(t=>t.toLowerCase()===name.toLowerCase())||name;
+    if(!TRADERS.includes(final)) TRADERS.push(final);
+    logAct('Add trader',final);
+  }
+  const sel=$(id);
+  if(sel && ![...sel.options].some(o=>o.value===final)){ const o=document.createElement('option'); o.value=final; o.textContent=final; sel.appendChild(o); }
+  if(sel) sel.value=final;
+  trAddShow(id,false);
 }
 function pickVal(id){
   const s=document.getElementById(id+'_sel').value;
@@ -364,16 +403,16 @@ function pdfReport(o){
 const PDF_RED=[185,28,28], PDF_GREEN=[21,128,61];
 function pdfExpenses(){
   const q=(($('expSearch')||{}).value||'').toLowerCase();
-  const rows=expData.filter(e=>(e.prop_firm+' '+(e.notes||'')).toLowerCase().includes(q));
+  const rows=expFiltered();
   pdfReport({section:'Expenses — Prop Firm Accounts',period:'Overall',
-    columns:['Date','Prop Firm','Account','Cost ($)','Notes'],
-    rows:rows.map(e=>[e.spent_on||'',e.prop_firm||'',e.account_size||'',pdfN(e.cost),e.notes||'']),
+    columns:['Date','Prop Firm','Trader','Account','Cost ($)','Notes'],
+    rows:rows.map(e=>[e.spent_on||'',e.prop_firm||'',e.trader||'',e.account_size||'',pdfN(e.cost),e.notes||'']),
     totals:[['Total Spent','$ '+pdfN(rows.reduce((s,e)=>s+Number(e.cost||0),0)),PDF_RED]],
     filename:'majid-ali-expenses.pdf'});
 }
 function pdfPayouts(){
   const q=(($('paySearch')||{}).value||'').toLowerCase();
-  let rows=payData.filter(p=>(p.prop_firm+' '+(p.notes||'')).toLowerCase().includes(q));
+  let rows=payData.filter(p=>(p.prop_firm+' '+(p.payout_for||'')+' '+(p.notes||'')).toLowerCase().includes(q) && (!(($('payTrader')||{}).value) || (p.payout_for||'')===$('payTrader').value));
   if(typeof payFilter!=='undefined'&&payFilter!=='all')rows=rows.filter(p=>p.status===payFilter);
   const pn=p=>Number(p.net_amount!=null?p.net_amount:p.amount);
   pdfReport({section:'Payouts — Profit Withdrawals',period:(typeof payFilter!=='undefined'&&payFilter!=='all')?('Status: '+payFilter):'Overall',
@@ -447,12 +486,12 @@ function csvDl(tag,rows,cols){
 }
 function csvExpenses(){
   const q=(($('expSearch')||{}).value||'').toLowerCase();
-  const rows=expData.filter(e=>(e.prop_firm+' '+(e.notes||'')).toLowerCase().includes(q));
-  csvDl('expenses',rows,['spent_on','prop_firm','account_size','cost','notes']);
+  const rows=expFiltered();
+  csvDl('expenses',rows,['spent_on','prop_firm','trader','account_size','cost','notes']);
 }
 function csvPayouts(){
   const q=(($('paySearch')||{}).value||'').toLowerCase();
-  let rows=payData.filter(p=>(p.prop_firm+' '+(p.notes||'')).toLowerCase().includes(q));
+  let rows=payData.filter(p=>(p.prop_firm+' '+(p.payout_for||'')+' '+(p.notes||'')).toLowerCase().includes(q) && (!(($('payTrader')||{}).value) || (p.payout_for||'')===$('payTrader').value));
   if(typeof payFilter!=='undefined'&&payFilter!=='all')rows=rows.filter(p=>p.status===payFilter);
   csvDl('payouts',rows,['payout_date','prop_firm','account_size','payout_for','amount','split_pct','net_amount','status','notes']);
 }
@@ -511,7 +550,8 @@ function csvStocks(){
 async function backup(){
   const d=new Date().toISOString().slice(0,10);
   const sets=[
-    ['expenses','expenses',['spent_on','prop_firm','account_size','cost','notes']],
+    ['expenses','expenses',['spent_on','prop_firm','trader','account_size','cost','notes']],
+    ['traders','traders',['name','active','created_at']],
     ['funds','funds',['deposit_date','user_email','amount','notes']],
     ['payouts','payouts',['payout_date','prop_firm','account_size','amount','split_pct','net_amount','status','payout_for','notes']],
     ['equity_accounts','equity',['entry_date','prop_firm','account_size','status','equity','notes']],
@@ -680,6 +720,7 @@ async function boot(){
     try{const {data:ps}=await sb.from('profiles').select('id,email');
       USERMAP={}; (ps||[]).forEach(p=>{USERMAP[p.id]=(p.email||'').split('@')[0];});}catch(e){}
   }
+  await loadTraders();
   const allowed = buildNav();
   if(ME.role==='pending' || allowed.length===0){
     $('view').innerHTML = `<div class="panel" style="margin-top:40px;text-align:center">
@@ -736,12 +777,17 @@ function drawMonthly(exp,pay){
    EXPENSES
 ============================================================ */
 let expData=[];
+function expFiltered(){
+  const q=(($('expSearch')||{}).value||'').toLowerCase(); const t=(($('expTrader')||{}).value||'');
+  return expData.filter(e=>(e.prop_firm+' '+(e.trader||'')+' '+(e.notes||'')).toLowerCase().includes(q) && (!t || (e.trader||'')===t));
+}
 async function pageExpenses(){
   $('view').innerHTML = `<div class="page-title">Expenses</div>
     <div class="page-sub">Prop firm accounts you bought — shown in the order of purchase date &amp; time</div>
     <div id="expBanner"></div>
     <div class="toolbar">
-      <input class="grow" id="expSearch" placeholder="Search firm or notes..." oninput="renderExp()">
+      <input class="grow" id="expSearch" placeholder="\u{1F50D} Search trader, firm or notes..." oninput="renderExp()">
+      <select id="expTrader" style="max-width:180px" onchange="renderExp()"><option value="">\u{1F464} All traders</option>${TRADERS.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
       ${ME.role==='admin'?`<button class="btn ghost" onclick="pdfExpenses()">⬇ PDF</button><button class="btn ghost" onclick="csvExpenses()">⬇ CSV</button>`:''}
       <button class="btn" onclick="expModal()">+ Add Expense</button>
     </div>
@@ -759,13 +805,13 @@ async function pageExpenses(){
 }
 function renderExp(){
   const q=($('expSearch').value||'').toLowerCase();
-  const rows=expData.filter(e=>(e.prop_firm+' '+(e.notes||'')).toLowerCase().includes(q));
+  const rows=expFiltered();
   const total=rows.reduce((s,e)=>s+Number(e.cost),0);
   if(!rows.length){$('expTable').innerHTML='<div class="empty">No expenses yet.</div>';return;}
   $('expTable').innerHTML = `<table><thead><tr>
-    <th>Date</th><th>Prop Firm</th><th>Account</th><th>Cost</th><th>Notes</th><th></th></tr></thead><tbody>
+    <th>Date</th><th>Prop Firm</th><th>Trader</th><th>Account</th><th>Cost</th><th>Notes</th><th></th></tr></thead><tbody>
     ${rows.map(e=>`<tr>
-      <td>${e.spent_on}${entryMeta(e,'spent_on')}</td><td>${esc(e.prop_firm)}</td><td>${esc(e.account_size||'')}</td>
+      <td>${e.spent_on}${entryMeta(e,'spent_on')}</td><td>${esc(e.prop_firm)}</td><td style="font-weight:600">${esc(e.trader||'-')}</td><td>${esc(e.account_size||'')}</td>
       <td>${money(e.cost)}</td><td>${esc(e.notes||'')}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn ghost sm" onclick='expModal(${JSON.stringify(e)})'>Edit</button>
@@ -777,7 +823,8 @@ function renderExp(){
 function expModal(e){
   e=e||{}; const ed=!!e.id;
   openModal(`<h3>${ed?'Edit':'Add'} Expense</h3>
-    <div class="field">${pickField('m_firm','Prop Firm *',FIRMS,e.prop_firm)}</div>
+    <div class="field">${selField('m_firm','Prop Firm *',firmOptions(e.prop_firm),e.prop_firm)}</div>
+    <div class="field">${traderField('m_trader',e.trader)}</div>
     <div class="row"><div class="field" style="flex:1">${pickField('m_acc','Account Size',SIZES,e.account_size)}</div>
       <div class="field" style="flex:1"><label>Cost *</label>
       <input id="m_cost" type="number" step="0.01" value="${e.cost||''}"></div></div>
@@ -788,14 +835,15 @@ function expModal(e){
       <button class="btn" onclick="saveExp('${e.id||''}')">Save</button></div>`);
 }
 async function saveExp(id){
-  const rec={prop_firm:pickVal('m_firm'),account_size:pickVal('m_acc'),
+  const rec={prop_firm:$('m_firm').value,trader:(($('m_trader')||{}).value||null),account_size:pickVal('m_acc'),
     cost:Number($('m_cost').value||0),spent_on:$('m_date').value,notes:$('m_notes').value.trim()};
   if(!rec.prop_firm){alert('Prop firm is required');return;}
+  if(!rec.trader && !NO_TRADER_FIRMS.includes(rec.prop_firm)){alert('Trader select karein (list mein nahi hai to \u2795 Add Trader dabayein)');return;}
   let err;
   if(id){({error:err}=await sb.from('expenses').update(rec).eq('id',id));}
   else{rec.created_by=ME.id;({error:err}=await sb.from('expenses').insert(rec));}
   if(err){alert(err.message);return;}
-  logAct(id?'Edit expense':'Add expense',rec.prop_firm+' '+money(rec.cost));
+  logAct(id?'Edit expense':'Add expense',rec.prop_firm+(rec.trader?' / '+rec.trader:'')+' '+money(rec.cost));
   closeModal(); pageExpenses();
 }
 
@@ -807,7 +855,8 @@ async function pagePayouts(){
   $('view').innerHTML = `<div class="page-title">Payouts</div>
     <div class="page-sub">Profit withdrawals from prop firms</div>
     <div class="toolbar">
-      <input class="grow" id="paySearch" placeholder="Search firm or notes..." oninput="renderPay()">
+      <input class="grow" id="paySearch" placeholder="\u{1F50D} Search trader, firm or notes..." oninput="renderPay()">
+      <select id="payTrader" style="max-width:180px" onchange="renderPay()"><option value="">\u{1F464} All traders</option>${TRADERS.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
       <select id="payStatus" style="max-width:160px" onchange="payFilter=this.value;renderPay()">
         <option value="all">All statuses</option><option>upcoming</option><option>pending</option><option>submitted</option>
         <option>paid</option></select>
@@ -820,14 +869,14 @@ async function pagePayouts(){
 }
 function renderPay(){
   const q=($('paySearch').value||'').toLowerCase();
-  let rows=payData.filter(p=>(p.prop_firm+' '+(p.notes||'')).toLowerCase().includes(q));
+  let rows=payData.filter(p=>(p.prop_firm+' '+(p.payout_for||'')+' '+(p.notes||'')).toLowerCase().includes(q) && (!(($('payTrader')||{}).value) || (p.payout_for||'')===$('payTrader').value));
   if(payFilter!=='all')rows=rows.filter(p=>p.status===payFilter);
   const pn=p=>Number(p.net_amount!=null?p.net_amount:p.amount);
   const total=rows.reduce((s,p)=>s+Number(p.amount),0);
   const totalNet=rows.reduce((s,p)=>s+pn(p),0);
   if(!rows.length){$('payTable').innerHTML='<div class="empty">No payouts yet.</div>';return;}
   $('payTable').innerHTML=`<table><thead><tr>
-    <th>Date</th><th>Prop Firm</th><th>Account</th><th>For</th><th>Amount</th><th>Your Net</th><th>Status</th><th>Proof</th><th></th></tr></thead><tbody>
+    <th>Date</th><th>Prop Firm</th><th>Account</th><th>Trader</th><th>Amount</th><th>Your Net</th><th>Status</th><th>Proof</th><th></th></tr></thead><tbody>
     ${rows.map(p=>`<tr>
       <td>${p.payout_date}${entryMeta(p,'payout_date')}</td><td>${esc(p.prop_firm)}</td><td>${esc(p.account_size||'')}</td><td>${esc(p.payout_for||'-')}</td>
       <td>${money(p.amount)}${p.split_pct!=null?` <span style="color:var(--muted);font-size:11px">(${p.split_pct}%)</span>`:''}</td>
@@ -844,9 +893,8 @@ function renderPay(){
 function payModal(p){
   p=p||{}; const ed=!!p.id;
   openModal(`<h3>${ed?'Edit':'Add'} Payout</h3>
-    <div class="field">${pickField('m_firm','Prop Firm *',FIRMS,p.prop_firm)}</div>
-    <div class="field"><label>Payout for (kis bande ki payout hai) *</label>
-      <input id="m_for" value="${esc(p.payout_for||'')}" placeholder="Person\'s name"></div>
+    <div class="field">${selField('m_firm','Prop Firm *',firmOptions(p.prop_firm),p.prop_firm)}</div>
+    <div class="field">${traderField('m_for',p.payout_for,'Trader (kis bande ki payout hai) *')}</div>
     <div class="row"><div class="field" style="flex:1">${pickField('m_acc','Account Size',SIZES,p.account_size)}</div>
       <div class="field" style="flex:1"><label>Amount (total profit) *</label>
       <input id="m_amt" type="number" step="0.01" value="${p.amount||''}" oninput="calcSplit()"></div></div>
@@ -882,11 +930,12 @@ async function viewProof(path){
 async function savePay(id){
   const amount=Number($('m_amt').value||0);
   const split_pct=Number($('m_split').value||0);
-  const rec={prop_firm:pickVal('m_firm'),account_size:pickVal('m_acc'),
+  const rec={prop_firm:$('m_firm').value,account_size:pickVal('m_acc'),
     amount, split_pct, net_amount:Math.round(amount*split_pct)/100,
     status:$('m_status').value,payout_date:$('m_date').value,notes:$('m_notes').value.trim(),
     payout_for:(($('m_for')||{}).value||'').trim()};
   if(!rec.prop_firm){alert('Prop firm is required');return;}
+  if(!rec.payout_for){alert('Trader select karein (list mein nahi hai to \u2795 Add Trader dabayein)');return;}
   const btn=$('m_saveBtn'); if(btn){btn.disabled=true;btn.textContent='Saving...';}
   const f=$('m_proof')&&$('m_proof').files[0];
   if(f){
@@ -922,6 +971,14 @@ async function pageReports(){
         <div class="field" style="flex:1;min-width:180px;max-width:260px"><label>Period</label>
         <select id="firmMonth" onchange="renderFirm()"></select></div></div>
       <div id="firmOut"></div></div>
+    <div class="panel"><h3>\u{1F464} Trader-wise Progress</h3>
+      <div class="row"><div class="field" style="flex:1;min-width:160px;max-width:240px"><label>Select trader</label>
+        <select id="trSel" onchange="renderTrader()"></select></div>
+        <div class="field" style="flex:1;min-width:160px;max-width:240px"><label>Firm</label>
+        <select id="trFirm" onchange="renderTrader()"></select></div>
+        <div class="field" style="flex:1;min-width:160px;max-width:240px"><label>Period</label>
+        <select id="trMonth" onchange="renderTrader()"></select></div></div>
+      <div id="trOut"></div></div>
     <div class="panel"><h3>By Prop Firm (for the selected period)</h3><div id="repTable"></div></div>
     <div style="margin-top:6px"><button class="btn" onclick="backup()">⬇ Download FULL Backup (all data, CSV)</button></div>`;
   $('perfTabs').innerHTML=PERF_RANGES.map(([d,l])=>`<button class="btn ghost" data-d="${d}" onclick="setPerf(${d},this)">${l}</button>`).join('');
@@ -935,6 +992,11 @@ async function pageReports(){
   $('firmSel').innerHTML=fl.length?fl.map(f=>`<option value="${esc(f.k)}">${esc(f.l)}</option>`).join(''):'<option value="">No firms yet</option>';
   $('firmMonth').innerHTML='<option value="all">All time</option>'+months.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
   renderFirm();
+  const tl=[...new Set([...e.map(x=>x.trader),...p.map(x=>x.payout_for)].map(x=>String(x||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  $('trSel').innerHTML=tl.length?tl.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join(''):'<option value="">No traders yet</option>';
+  $('trFirm').innerHTML='<option value="">All firms</option>'+fl.map(f=>`<option value="${esc(f.k)}">${esc(f.l)}</option>`).join('');
+  $('trMonth').innerHTML='<option value="all">All time</option>'+months.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  renderTrader();
   setPerf(30, document.querySelector('#perfTabs button[data-d="30"]'));
 }
 function buildMonthList(e,p){
@@ -976,6 +1038,40 @@ function renderFirm(){
     ${keys.map(k=>{const r=mm[k], n=r.p-r.e; return `<tr><td>${ml(k)}</td><td>${r.n}</td><td>${money(r.e)}</td><td>${r.c}</td><td style="color:var(--green2)">${money(r.p)}</td><td style="color:${n>=0?'var(--green2)':'#fca5a5'};font-weight:700">${money(n)}</td></tr>`;}).join('')}
     </tbody></table></div>`:'<div class="empty">Is period mein is firm ka koi data nahi.</div>';
   $('firmOut').innerHTML=html;
+}
+function renderTrader(){
+  const {e,p}=window._rep; const t=($('trSel')||{}).value; const ff=($('trFirm')||{}).value||''; const per=($('trMonth')||{}).value||'all';
+  if(!t){ $('trOut').innerHTML='<div class="empty">No data yet.</div>'; return; }
+  const pn=x=>Number(x.net_amount!=null?x.net_amount:x.amount);
+  const inP=d=>per==='all' || String(d||'').slice(0,7)===per;
+  const fe=e.filter(x=>String(x.trader||'').trim()===t && (!ff||firmKey(x.prop_firm)===ff));
+  const fp=p.filter(x=>String(x.payout_for||'').trim()===t && (!ff||firmKey(x.prop_firm)===ff));
+  const exp=fe.filter(x=>inP(x.spent_on));
+  const paid=fp.filter(x=>x.status==='paid' && inP(x.payout_date));
+  const pend=fp.filter(x=>x.status!=='paid' && inP(x.payout_date));
+  const te=exp.reduce((s,x)=>s+Number(x.cost||0),0), tp=paid.reduce((s,x)=>s+pn(x),0), tpe=pend.reduce((s,x)=>s+pn(x),0);
+  const net=tp-te, roi=te>0?(net/te*100):0;
+  let html=`<div class="cards">${card('Expense (buying)',money(te),'r')}${card('Payouts (paid)',money(tp),'g')}${card('Net Profit',money(net),net>=0?'g':'r')}${card('ROI',roi.toFixed(1)+'%',roi>=0?'gd':'r')}${card('Pending payouts',money(tpe),'gd')}</div>
+    <div style="color:var(--muted);font-size:12px;margin:-10px 0 12px">${exp.length} expense(s) \u00B7 ${paid.length} paid payout(s) \u00B7 ${pend.length} pending</div>`;
+  // firm-wise for this trader
+  const fm={};
+  exp.forEach(x=>{const k=x.prop_firm||'-'; (fm[k]=fm[k]||{n:0,e:0,c:0,p:0}); fm[k].n++; fm[k].e+=Number(x.cost||0);});
+  paid.forEach(x=>{const k=x.prop_firm||'-'; (fm[k]=fm[k]||{n:0,e:0,c:0,p:0}); fm[k].c++; fm[k].p+=pn(x);});
+  const fk=Object.keys(fm).sort();
+  if(fk.length) html+=`<div style="font-weight:700;margin:6px 0 8px">Firm-wise</div><div style="overflow-x:auto;margin-bottom:14px"><table><thead><tr><th>Firm</th><th>Expenses</th><th>Expense</th><th>Payouts</th><th>Paid</th><th>Net</th></tr></thead><tbody>
+    ${fk.map(k=>{const r=fm[k], n=r.p-r.e; return `<tr><td>${esc(k)}</td><td>${r.n}</td><td>${money(r.e)}</td><td>${r.c}</td><td style="color:var(--green2)">${money(r.p)}</td><td style="color:${n>=0?'var(--green2)':'#fca5a5'};font-weight:700">${money(n)}</td></tr>`;}).join('')}
+    </tbody></table></div>`;
+  // month-wise
+  const mm={};
+  fe.forEach(x=>{const k=String(x.spent_on||'').slice(0,7); if(!k)return; (mm[k]=mm[k]||{n:0,e:0,c:0,p:0}); mm[k].n++; mm[k].e+=Number(x.cost||0);});
+  fp.filter(x=>x.status==='paid').forEach(x=>{const k=String(x.payout_date||'').slice(0,7); if(!k)return; (mm[k]=mm[k]||{n:0,e:0,c:0,p:0}); mm[k].c++; mm[k].p+=pn(x);});
+  let keys=Object.keys(mm).sort().reverse(); if(per!=='all') keys=keys.filter(k=>k===per);
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ml=k=>{const a=k.split('-'); return (MN[Number(a[1])-1]||a[1])+' '+a[0];};
+  html += keys.length?`<div style="font-weight:700;margin:6px 0 8px">Month-wise</div><div style="overflow-x:auto"><table><thead><tr><th>Month</th><th>Expenses</th><th>Expense</th><th>Payouts</th><th>Paid</th><th>Net</th></tr></thead><tbody>
+    ${keys.map(k=>{const r=mm[k], n=r.p-r.e; return `<tr><td>${ml(k)}</td><td>${r.n}</td><td>${money(r.e)}</td><td>${r.c}</td><td style="color:var(--green2)">${money(r.p)}</td><td style="color:${n>=0?'var(--green2)':'#fca5a5'};font-weight:700">${money(n)}</td></tr>`;}).join('')}
+    </tbody></table></div>`:'<div class="empty">Is period mein is trader ka koi data nahi.</div>';
+  $('trOut').innerHTML=html;
 }
 function renderMonth(){
   const {e,p}=window._rep; const m=($('monthSel')||{}).value; if(!m)return;
